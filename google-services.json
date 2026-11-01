@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "772698292142",
+    "project_id": "bloom-968d5",
+    "storage_bucket": "bloom-968d5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:772698292142:android:4ea9337cf454e79cb4923f",
+        "android_client_info": {
+          "package_name": "com.melroy.bloom"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "772698292142-5n4stbotk0u4nvdmrqp0edkbif6mjcdd.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAeOPOk0ZO_lBAGh8odZHmT1SC7i4-uls0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "772698292142-5n4stbotk0u4nvdmrqp0edkbif6mjcdd.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
