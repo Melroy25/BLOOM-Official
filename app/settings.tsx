@@ -68,25 +68,26 @@ export default function SettingsScreen() {
 
   const activeMood: MoodType = currentMood || (userProfile?.currentMood as MoodType) || 'Calm';
 
+  // Sign Out Modal State
+  const [signOutModalVisible, setSignOutModalVisible] = useState(false);
+
+  const executeSignOut = async () => {
+    setSignOutModalVisible(false);
+    try {
+      await signOutUser();
+      router.replace('/(auth)/login');
+    } catch (err: any) {
+      console.error('[Settings] Sign out error:', err);
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(err?.message || 'Could not sign out.');
+      } else {
+        Alert.alert('Error', err?.message || 'Could not sign out.');
+      }
+    }
+  };
+
   const handleSignOut = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out of your BLOOM account?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOutUser();
-            } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Could not sign out.');
-            }
-          },
-        },
-      ]
-    );
+    setSignOutModalVisible(true);
   };
 
   const handleSelectTime = async (time: string) => {
@@ -489,6 +490,46 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* SIGN OUT CONFIRMATION MODAL */}
+      <Modal
+        visible={signOutModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSignOutModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, Shadows.lg, { backgroundColor: colors.white }]}>
+            <View style={styles.signOutModalHeader}>
+              <View style={styles.signOutIconBg}>
+                <LogOut size={22} color="#D9534F" strokeWidth={2.2} />
+              </View>
+              <Text style={[styles.modalTitle, { color: colors.darkText }]}>Sign Out</Text>
+              <Text style={[styles.modalSubtitle, { color: colors.mutedText, textAlign: 'center' }]}>
+                Are you sure you want to sign out of your BLOOM account?
+              </Text>
+            </View>
+
+            <View style={styles.signOutModalActions}>
+              <TouchableOpacity
+                style={[styles.modalActionBtn, styles.modalCancelBtn, { borderColor: colors.border }]}
+                onPress={() => setSignOutModalVisible(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.modalCancelBtnText, { color: colors.darkText }]}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalActionBtn, styles.modalConfirmBtn]}
+                onPress={executeSignOut}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalConfirmBtnText}>Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -697,5 +738,48 @@ const styles = StyleSheet.create({
   modalCloseBtnText: {
     fontSize: 13,
     fontWeight: '600',
+  },
+  signOutModalHeader: {
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  signOutIconBg: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FDECEB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  signOutModalActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
+  },
+  modalActionBtn: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: BorderRadius.round,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelBtn: {
+    borderWidth: 1,
+    backgroundColor: 'transparent',
+  },
+  modalCancelBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  modalConfirmBtn: {
+    backgroundColor: '#D9534F',
+  },
+  modalConfirmBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

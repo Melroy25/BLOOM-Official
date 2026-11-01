@@ -95,6 +95,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     let unsubscribeProfile: (() => void) | null = null;
 
+    // Safety timeout to ensure app never hangs on cold start
+    const safetyTimeout = setTimeout(() => {
+      setIsLoading((loading) => {
+        if (loading) {
+          console.warn('[AuthContext] Auth loading safety timeout reached (4s). Setting isLoading to false.');
+          return false;
+        }
+        return false;
+      });
+    }, 4000);
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
 
@@ -147,6 +158,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
 
     return () => {
+      clearTimeout(safetyTimeout);
       unsubscribeAuth();
       if (unsubscribeProfile) {
         unsubscribeProfile();
@@ -192,6 +204,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         currentMood: 'Calm',
         wellnessGoals: ['Mindful balance'],
       });
+
+      const initialProfile: UserProfile = {
+        uid: cred.user.uid,
+        fullName: cleanName,
+        email: cred.user.email || email.trim(),
+        photoURL: cred.user.photoURL || null,
+        username: email.trim().split('@')[0] || `user_${cred.user.uid.slice(0, 5)}`,
+        onboardingCompleted: false,
+        userType: 'student',
+        currentMood: 'Calm',
+        wellnessGoals: ['Mindful balance'],
+        notificationPreferences: {
+          dailyReminders: true,
+          streakAlerts: true,
+          communityUpdates: true,
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      setUserProfile(initialProfile);
+      try {
+        await AsyncStorage.setItem(`@bloom_profile_${cred.user.uid}`, JSON.stringify(initialProfile));
+      } catch (_) {}
+      setIsLoading(false);
     } catch (error: any) {
       const friendlyMsg = mapAuthErrorMessage(error?.code || '');
       setAuthError(friendlyMsg);

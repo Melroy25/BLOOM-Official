@@ -9,12 +9,22 @@ import {
   createAIConversation,
   deleteAIConversation,
   getUserAIConversations,
+  getAIMessages,
+  subscribeToAIMessages,
 } from './firestoreService';
 import { generateCompanionResponse, ChatMessage, ChatAttachment } from './aiCompanionService';
 import { UserProfile } from '../types';
 
 // Production Cloudflare Worker Endpoint
 const CLOUDFLARE_WORKER_URL = 'https://weathered-cell-4deb.melroyalmeida10.workers.dev/chat';
+
+export type AIResponseSource = 'gemini' | 'offline_fallback';
+export type AIErrorType = 'AUTH_ERROR' | 'RATE_LIMIT' | 'TIMEOUT' | 'NETWORK_ERROR' | 'SERVER_ERROR' | 'NONE';
+
+export interface ExtendedChatMessage extends ChatMessage {
+  source?: AIResponseSource;
+  errorType?: AIErrorType;
+}
 
 export interface SendMessageOptions {
   conversationId: string;
@@ -23,6 +33,7 @@ export interface SendMessageOptions {
   attachment?: ChatAttachment | null;
   userProfile?: UserProfile | null;
   history?: { role: 'user' | 'model'; parts: { text: string }[] }[];
+  skipUserSave?: boolean;
 }
 
 /**
@@ -55,7 +66,7 @@ function detectEmotion(text: string): ChatMessage['emotion'] {
 
 /**
  * Sends a message to the Bloom AI Cloudflare Worker backend.
- * 1. Persists the user message to Firestore.
+ * 1. Persists the user message to Firestore (unless skipUserSave is true).
  * 2. Authenticates with Firebase Auth ID token and sends request to Cloudflare Worker.
  * 3. Falls back seamlessly to Bloom Mindful Reflection Engine if offline or error occurs.
  * 4. Persists the AI response to Firestore.
@@ -67,27 +78,45 @@ export async function sendAIMessage({
   attachment,
   userProfile,
   history = [],
-}: SendMessageOptions): Promise<ChatMessage> {
+  skipUserSave = false,
+}: SendMessageOptions): Promise<ExtendedChatMessage> {
   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  // 1. Save User Message to Firestore
-  try {
-    await saveAIMessage(conversationId, {
-      conversationId,
-      userId,
-      sender: 'user',
-      text: userText,
-    });
-  } catch (err) {
-    console.warn('[GeminiService] Could not save user message to Firestore:', err);
+  // 1. Save User Message to Firestore (prevent duplicate if already persisted)
+  if (!skipUserSave && conversationId && conversationId !== 'default' && !conversationId.startsWith('temp_')) {
+    try {
+      await saveAIMessage(conversationId, {
+        conversationId,
+        userId: userId || 'anonymous',
+        sender: 'user',
+        text: userText,
+      });
+    } catch (err) {
+      console.warn('[GeminiService] Could not save user message to Firestore:', err);
+    }
   }
 
   let aiResponseText = '';
+  let errorType: AIErrorType = 'NONE';
+  let source: AIResponseSource = 'gemini';
 
   // 2. Query Cloudflare Worker backend
   try {
     const currentUser = auth.currentUser;
-    const idToken = currentUser ? await currentUser.getIdToken() : null;
+    let idToken: string | null = null;
+
+    if (currentUser) {
+      try {
+        idToken = await currentUser.getIdToken(false);
+      } catch {
+        // Retry with force refresh if token was expired
+        try {
+          idToken = await currentUser.getIdToken(true);
+        } catch (tokErr) {
+          console.warn('[GeminiService] Token refresh error:', tokErr);
+        }
+      }
+    }
 
     if (idToken) {
       // Format context with user profile if available
@@ -97,14 +126,17 @@ export async function sendAIMessage({
 
       const contextualMessage = `${profileContext}${userText}`;
 
-      // Format multi-turn conversation history for Worker
-      const formattedHistory = (history || []).slice(-6).map((item) => ({
-        role: item.role === 'model' ? 'model' : 'user',
-        parts: item.parts && item.parts.length > 0 ? item.parts : [{ text: '' }],
-      }));
+      // Format multi-turn conversation history for Worker (last 6 turns, non-empty text)
+      const formattedHistory = (history || [])
+        .slice(-6)
+        .map((item) => ({
+          role: item.role === 'model' ? 'model' : 'user',
+          parts: [{ text: item.parts?.[0]?.text || '' }],
+        }))
+        .filter((item) => item.parts[0].text.trim().length > 0);
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 18000);
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
       const response = await fetch(CLOUDFLARE_WORKER_URL, {
         method: 'POST',
@@ -125,20 +157,37 @@ export async function sendAIMessage({
         const data = await response.json();
         if (data && data.reply && typeof data.reply === 'string') {
           aiResponseText = data.reply.trim();
+          source = 'gemini';
+        } else {
+          errorType = 'SERVER_ERROR';
         }
+      } else if (response.status === 401 || response.status === 403) {
+        errorType = 'AUTH_ERROR';
+        console.warn(`[GeminiService] Worker returned Auth error (${response.status})`);
+      } else if (response.status === 429) {
+        errorType = 'RATE_LIMIT';
+        console.warn('[GeminiService] Worker rate limit exceeded (429)');
       } else {
-        const errText = await response.text();
-        console.warn(`[GeminiService] Worker returned HTTP ${response.status}:`, errText);
+        errorType = 'SERVER_ERROR';
+        console.warn(`[GeminiService] Worker returned HTTP ${response.status}`);
       }
     } else {
-      console.info('[GeminiService] No Firebase Auth token available; using Bloom local engine.');
+      source = 'offline_fallback';
+      console.info('[GeminiService] No Firebase Auth session active; using local mindful reflection engine.');
     }
   } catch (err: any) {
-    console.warn('[GeminiService] Cloudflare Worker request failed; falling back:', err?.message || err);
+    if (err?.name === 'AbortError') {
+      errorType = 'TIMEOUT';
+      console.warn('[GeminiService] Request timed out (15s); using local mindful reflection fallback.');
+    } else {
+      errorType = 'NETWORK_ERROR';
+      console.warn('[GeminiService] Network failure; using local mindful reflection fallback:', err?.message || err);
+    }
+    source = 'offline_fallback';
   }
 
   // 3. Construct response or trigger Bloom Mindful Reflection Engine fallback
-  let aiChatMessage: ChatMessage;
+  let aiChatMessage: ExtendedChatMessage;
 
   if (aiResponseText) {
     const emotion = detectEmotion(aiResponseText);
@@ -149,23 +198,32 @@ export async function sendAIMessage({
       timestamp,
       emotion,
       quickReplies: ['Help me focus', 'Breathing reset', 'Study tips'],
+      source: 'gemini',
+      errorType: 'NONE',
     };
   } else {
-    // Local Bloom Mindful Reflection Engine
-    aiChatMessage = await generateCompanionResponse(userText, attachment || undefined);
+    // Local Bloom Mindful Reflection Engine fallback
+    const fallbackResponse = await generateCompanionResponse(userText, attachment || undefined);
+    aiChatMessage = {
+      ...fallbackResponse,
+      source: 'offline_fallback',
+      errorType,
+    };
   }
 
   // 4. Save AI Response to Firestore
-  try {
-    await saveAIMessage(conversationId, {
-      conversationId,
-      userId,
-      sender: 'ai',
-      text: aiChatMessage.text,
-      emotion: aiChatMessage.emotion,
-    });
-  } catch (err) {
-    console.warn('[GeminiService] Could not save AI response to Firestore:', err);
+  if (conversationId && conversationId !== 'default' && !conversationId.startsWith('temp_')) {
+    try {
+      await saveAIMessage(conversationId, {
+        conversationId,
+        userId: userId || 'anonymous',
+        sender: 'ai',
+        text: aiChatMessage.text,
+        emotion: aiChatMessage.emotion,
+      });
+    } catch (err) {
+      console.warn('[GeminiService] Could not save AI response to Firestore:', err);
+    }
   }
 
   return aiChatMessage;
@@ -194,3 +252,15 @@ export async function removeConversation(conversationId: string): Promise<void> 
 export async function getPastConversations(userId: string) {
   return await getUserAIConversations(userId);
 }
+
+/**
+ * Fetches all messages for a given conversation.
+ */
+export async function getConversationMessages(conversationId: string) {
+  return await getAIMessages(conversationId);
+}
+
+/**
+ * Subscribes to real-time messages for a conversation.
+ */
+export { subscribeToAIMessages };

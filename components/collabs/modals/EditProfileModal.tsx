@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -43,6 +43,16 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [bio, setBio] = useState(currentUser.bio);
   const [avatar, setAvatar] = useState(currentUser.avatar);
   const [isPublic, setIsPublic] = useState(currentUser.visibility !== 'private');
+
+  useEffect(() => {
+    if (visible) {
+      setName(currentUser.name);
+      setHandle(currentUser.handle);
+      setBio(currentUser.bio);
+      setAvatar(currentUser.avatar);
+      setIsPublic(currentUser.visibility !== 'private');
+    }
+  }, [visible, currentUser]);
 
   const handlePickAvatarFromGallery = async () => {
     try {
