@@ -49,6 +49,14 @@ import {
 import { speechService } from '../../services/speechService';
 import { AnimatedMascot } from '../../components/ai/AnimatedMascot';
 import { SidebarDrawer } from '../../components/ai/SidebarDrawer';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../../context/AuthContext';
+import { sendAIMessage } from '../../services/geminiService';
+import {
+  getUserAIConversations,
+  createAIConversation,
+  getAIMessages,
+} from '../../services/firestoreService';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -61,6 +69,8 @@ const SAMPLE_VOICE_PROMPTS = [
 
 export default function AICompanionScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { user, userProfile } = useAuth();
 
   // Mode state: 'VOICE' = Bot speaking audio with prominent mascot; 'CHAT' = pure text chat stream
   const [companionMode, setCompanionMode] = useState<'VOICE' | 'CHAT'>('VOICE');
@@ -78,6 +88,70 @@ export default function AICompanionScreen() {
   const [activeThreadId, setActiveThreadId] = useState<string>('checkin-1');
   const [isChatTyping, setIsChatTyping] = useState<boolean>(false);
   const chatScrollRef = useRef<any>(null);
+
+  // Load user conversations from Firestore when user changes
+  useEffect(() => {
+    let isMounted = true;
+    async function loadUserConversations() {
+      if (!user?.uid) return;
+      try {
+        const convDocs = await getUserAIConversations(user.uid);
+        if (convDocs && convDocs.length > 0 && isMounted) {
+          const loadedThreads: ConversationThread[] = convDocs.map((c) => {
+            let updatedText = 'Recently';
+            if (c.updatedAt) {
+              const date = (c.updatedAt as any).toDate
+                ? (c.updatedAt as any).toDate()
+                : (c.updatedAt as any).toMillis
+                ? new Date((c.updatedAt as any).toMillis())
+                : new Date(c.updatedAt);
+              updatedText = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+            return {
+              id: c.id,
+              title: c.title || 'Mindful Reflection',
+              lastUpdated: updatedText,
+              messages: [],
+            };
+          });
+
+          const firstConvId = loadedThreads[0].id;
+          const firstMsgs = await getAIMessages(firstConvId);
+          if (firstMsgs && firstMsgs.length > 0 && isMounted) {
+            loadedThreads[0].messages = firstMsgs.map((m) => {
+              let time = 'Earlier';
+              if (m.createdAt) {
+                const date = (m.createdAt as any).toDate
+                  ? (m.createdAt as any).toDate()
+                  : (m.createdAt as any).toMillis
+                  ? new Date((m.createdAt as any).toMillis())
+                  : new Date(m.createdAt);
+                time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              }
+              return {
+                id: m.id,
+                sender: m.sender,
+                text: m.text,
+                timestamp: time,
+                emotion: (m.emotion as MascotState) || 'HAPPY',
+              };
+            });
+          }
+
+          if (isMounted) {
+            setThreads(loadedThreads);
+            setActiveThreadId(firstConvId);
+          }
+        }
+      } catch (e) {
+        console.warn('[AI Screen] Could not load user conversations:', e);
+      }
+    }
+    loadUserConversations();
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.uid]);
 
   // Input & Attachment state (ChatGPT-like file/image upload)
   const [inputText, setInputText] = useState<string>('');
@@ -215,9 +289,67 @@ export default function AICompanionScreen() {
     setSpeechError(null);
     setMascotState('THINKING');
 
+    let convId = activeThreadId;
+    if (user?.uid && (convId.startsWith('checkin-') || convId === 'default' || convId.startsWith('temp-'))) {
+      try {
+        const title = trimmed ? (trimmed.length > 30 ? trimmed.substring(0, 30) + '...' : trimmed) : 'Voice Reflection';
+        convId = await createAIConversation(user.uid, title);
+        setActiveThreadId(convId);
+      } catch (e) {
+        console.warn('[AI Screen] Could not create thread for voice:', e);
+      }
+    }
+
+    const time = getFormattedTime();
+    const userMsg: ChatMessage = {
+      id: 'user-' + Date.now(),
+      sender: 'user',
+      text: trimmed,
+      attachment: attachment || undefined,
+      timestamp: time,
+    };
+
+    const history = currentThread.messages.slice(-6).map((m) => ({
+      role: m.sender === 'user' ? ('user' as const) : ('model' as const),
+      parts: [{ text: m.text }],
+    }));
+
     try {
-      const response = await generateCompanionResponse(trimmed, attachment || undefined);
+      const response = await sendAIMessage({
+        conversationId: convId,
+        userId: user?.uid || 'anonymous',
+        userText: trimmed,
+        attachment: attachment || undefined,
+        userProfile,
+        history,
+      });
+
       setVoiceResponseText(response.text);
+
+      setThreads((prevThreads) => {
+        const exists = prevThreads.some((t) => t.id === convId);
+        if (exists) {
+          return prevThreads.map((t) => {
+            if (t.id === convId) {
+              return {
+                ...t,
+                lastUpdated: 'Just now',
+                messages: [...t.messages, userMsg, response],
+              };
+            }
+            return t;
+          });
+        }
+        return [
+          {
+            id: convId,
+            title: trimmed ? (trimmed.length > 30 ? trimmed.substring(0, 30) + '...' : trimmed) : 'Voice Reflection',
+            lastUpdated: 'Just now',
+            messages: [userMsg, response],
+          },
+          ...prevThreads,
+        ];
+      });
 
       if (isVoiceMode) {
         await speechService.speak(
@@ -264,33 +396,75 @@ export default function AICompanionScreen() {
       timestamp: time,
     };
 
-    // Append user message immediately
-    setThreads((prevThreads) =>
-      prevThreads.map((t) => {
-        if (t.id === currentThread.id) {
-          return {
-            ...t,
-            lastUpdated: 'Just now',
-            messages: [...t.messages, userMsg],
-          };
-        }
-        return t;
-      })
-    );
+    let targetConvId = activeThreadId;
+    let isNewConv = false;
+    let newTitle = '';
+
+    if (user?.uid && (targetConvId.startsWith('checkin-') || targetConvId === 'default' || targetConvId.startsWith('temp-'))) {
+      try {
+        newTitle = trimmed ? (trimmed.length > 30 ? trimmed.substring(0, 30) + '...' : trimmed) : 'Mindful Reflection';
+        targetConvId = await createAIConversation(user.uid, newTitle);
+        isNewConv = true;
+        setActiveThreadId(targetConvId);
+      } catch (e) {
+        console.warn('[AI Screen] Could not create Firestore conversation:', e);
+      }
+    }
+
+    // Append user message immediately (optimistic UI)
+    setThreads((prevThreads) => {
+      const exists = prevThreads.some((t) => t.id === targetConvId || (isNewConv && t.id === activeThreadId));
+      if (exists) {
+        return prevThreads.map((t) => {
+          if (t.id === targetConvId || (isNewConv && t.id === activeThreadId)) {
+            return {
+              ...t,
+              id: targetConvId,
+              title: isNewConv ? newTitle : t.title,
+              lastUpdated: 'Just now',
+              messages: [...t.messages, userMsg],
+            };
+          }
+          return t;
+        });
+      }
+      return [
+        {
+          id: targetConvId,
+          title: newTitle || 'Mindful Reflection',
+          lastUpdated: 'Just now',
+          messages: [userMsg],
+        },
+        ...prevThreads,
+      ];
+    });
 
     setSelectedAttachment(null);
     setInputText('');
     setIsChatTyping(true);
 
+    const history = currentThread.messages.slice(-6).map((m) => ({
+      role: m.sender === 'user' ? ('user' as const) : ('model' as const),
+      parts: [{ text: m.text }],
+    }));
+
     try {
-      const aiResponse = await generateCompanionResponse(trimmed, attachment || undefined);
+      const aiResponse = await sendAIMessage({
+        conversationId: targetConvId,
+        userId: user?.uid || 'anonymous',
+        userText: trimmed,
+        attachment: attachment || undefined,
+        userProfile,
+        history,
+      });
+
       setThreads((prevThreads) =>
         prevThreads.map((t) => {
-          if (t.id === currentThread.id) {
+          if (t.id === targetConvId) {
             return {
               ...t,
               lastUpdated: 'Just now',
-              messages: [...t.messages, aiResponse],
+              messages: [...t.messages.filter((m) => m.id !== aiResponse.id), aiResponse],
             };
           }
           return t;
@@ -302,10 +476,11 @@ export default function AICompanionScreen() {
         sender: 'ai',
         text: "I'm right here with you. Take a slow, gentle breath and let's take this one step at a time.",
         timestamp: time,
+        emotion: 'COMFORTING',
       };
       setThreads((prevThreads) =>
         prevThreads.map((t) => {
-          if (t.id === currentThread.id) {
+          if (t.id === targetConvId) {
             return {
               ...t,
               messages: [...t.messages, fallbackMsg],
@@ -404,9 +579,16 @@ export default function AICompanionScreen() {
   };
 
   // Start a fresh chat
-  const handleNewChat = () => {
+  const handleNewChat = async () => {
     speechService.stopSpeaking();
-    const newId = 'chat-' + Date.now();
+    let newId = 'chat-' + Date.now();
+    if (user?.uid) {
+      try {
+        newId = await createAIConversation(user.uid, 'New Conversation');
+      } catch (err) {
+        console.warn('[AI Screen] Could not create new conversation in Firestore:', err);
+      }
+    }
     const newThread: ConversationThread = {
       id: newId,
       title: 'New Conversation',
@@ -425,13 +607,51 @@ export default function AICompanionScreen() {
     setThreads((prev) => [newThread, ...prev]);
     setActiveThreadId(newId);
     setCompanionMode('CHAT');
+    setSidebarOpen(false);
   };
 
   // Select a thread from drawer
-  const handleSelectThread = (thread: ConversationThread) => {
+  const handleSelectThread = async (thread: ConversationThread) => {
     speechService.stopSpeaking();
     setActiveThreadId(thread.id);
     setCompanionMode('CHAT');
+    setSidebarOpen(false);
+
+    if (
+      thread.messages.length === 0 &&
+      user?.uid &&
+      !thread.id.startsWith('checkin-') &&
+      !thread.id.startsWith('temp-')
+    ) {
+      try {
+        const msgs = await getAIMessages(thread.id);
+        if (msgs && msgs.length > 0) {
+          const mappedMsgs: ChatMessage[] = msgs.map((m) => {
+            let time = 'Earlier';
+            if (m.createdAt) {
+              const date = (m.createdAt as any).toDate
+                ? (m.createdAt as any).toDate()
+                : (m.createdAt as any).toMillis
+                ? new Date((m.createdAt as any).toMillis())
+                : new Date(m.createdAt);
+              time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+            return {
+              id: m.id,
+              sender: m.sender,
+              text: m.text,
+              timestamp: time,
+              emotion: (m.emotion as MascotState) || 'HAPPY',
+            };
+          });
+          setThreads((prev) =>
+            prev.map((t) => (t.id === thread.id ? { ...t, messages: mappedMsgs } : t))
+          );
+        }
+      } catch (err) {
+        console.warn('[AI Screen] Error fetching thread messages:', err);
+      }
+    }
   };
 
   const topInset = Math.max(insets.top, Platform.OS === 'android' ? 24 : 16);
@@ -766,6 +986,29 @@ export default function AICompanionScreen() {
                                 </View>
                               </View>
                             ))}
+                          </View>
+                        )}
+
+                        {/* Study Sprint Widget if triggered */}
+                        {msg.showSprintWidget && (
+                          <View style={styles.sprintWidgetCard}>
+                            <View style={styles.sprintWidgetHeader}>
+                              <View style={styles.sprintWidgetIconBadge}>
+                                <Sparkles size={16} color={Colors.primaryDark} />
+                              </View>
+                              <View style={styles.sprintWidgetInfo}>
+                                <Text style={styles.sprintWidgetTitle}>{msg.sprintTopic || 'Focus Sprint'}</Text>
+                                <Text style={styles.sprintWidgetSub}>{msg.sprintMinutes || 20} min gentle focus</Text>
+                              </View>
+                            </View>
+                            <TouchableOpacity
+                              style={styles.sprintWidgetBtn}
+                              onPress={() => router.push('/focus-mode')}
+                              activeOpacity={0.8}
+                            >
+                              <Play size={13} color={Colors.white} fill={Colors.white} />
+                              <Text style={styles.sprintWidgetBtnText}>Begin Sprint</Text>
+                            </TouchableOpacity>
                           </View>
                         )}
                       </View>
@@ -1740,6 +1983,56 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: Colors.border,
+  },
+  sprintWidgetCard: {
+    marginTop: 10,
+    padding: 12,
+    backgroundColor: '#F3F8F4',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D4E5D8',
+  },
+  sprintWidgetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  sprintWidgetIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.lightSage,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  sprintWidgetInfo: {
+    flex: 1,
+  },
+  sprintWidgetTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.darkText,
+  },
+  sprintWidgetSub: {
+    fontSize: 11,
+    color: Colors.mutedText,
+    marginTop: 1,
+  },
+  sprintWidgetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primaryDark,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    gap: 6,
+  },
+  sprintWidgetBtnText: {
+    color: Colors.white,
+    fontSize: 12,
+    fontWeight: '700',
   },
   samplePromptText: {
     ...Typography.bodySmall,

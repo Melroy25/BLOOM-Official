@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -84,6 +85,35 @@ export default function OnboardingScreen() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Load persisted onboarding step for returning user
+  useEffect(() => {
+    if (!user?.uid) return;
+    AsyncStorage.getItem(`@bloom_onboarding_step_${user.uid}`)
+      .then((savedStep) => {
+        if (savedStep) {
+          const stepNum = parseInt(savedStep, 10);
+          if (stepNum >= 1 && stepNum <= TOTAL_STEPS) {
+            setCurrentStep(stepNum);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [user?.uid]);
+
+  // Keep name synced if profile loads after initial mount
+  useEffect(() => {
+    if (!name && (userProfile?.fullName || user?.displayName)) {
+      setName(userProfile?.fullName || user?.displayName || '');
+    }
+  }, [userProfile?.fullName, user?.displayName]);
+
+  const changeStep = (newStep: number) => {
+    setCurrentStep(newStep);
+    if (user?.uid) {
+      AsyncStorage.setItem(`@bloom_onboarding_step_${user.uid}`, newStep.toString()).catch(() => {});
+    }
+  };
+
   // Form State
   const [name, setName] = useState(userProfile?.fullName || user?.displayName || '');
   const [selectedMood, setSelectedMood] = useState<string>('Calm');
@@ -123,7 +153,7 @@ export default function OnboardingScreen() {
       return;
     }
     if (currentStep < TOTAL_STEPS) {
-      setCurrentStep((prev) => prev + 1);
+      changeStep(currentStep + 1);
     } else {
       handleFinish();
     }
@@ -131,7 +161,7 @@ export default function OnboardingScreen() {
 
   const handleSkip = () => {
     if (currentStep < TOTAL_STEPS) {
-      setCurrentStep((prev) => prev + 1);
+      changeStep(currentStep + 1);
     } else {
       handleFinish();
     }
@@ -139,13 +169,16 @@ export default function OnboardingScreen() {
 
   const handleBack = () => {
     if (currentStep > 1) {
-      setCurrentStep((prev) => prev - 1);
+      changeStep(currentStep - 1);
     }
   };
 
   const handleFinish = async () => {
     setIsSubmitting(true);
     try {
+      if (user?.uid) {
+        await AsyncStorage.removeItem(`@bloom_onboarding_step_${user.uid}`).catch(() => {});
+      }
       await completeUserOnboarding({
         fullName: name.trim() || 'Bloom Member',
         currentMood: selectedMood,
