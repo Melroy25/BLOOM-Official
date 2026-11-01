@@ -13,6 +13,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { BloomHeader } from '../../components/dashboard/BloomHeader';
 import { TodayOverviewSection } from '../../components/dashboard/TodayOverviewSection';
 import { QuickAccessSection } from '../../components/dashboard/QuickAccessSection';
+import { AddWidgetCard } from '../../components/dashboard/AddWidgetCard';
 import { DailyGoalsSection } from '../../components/dashboard/DailyGoalsSection';
 import {
   getUserTasks,
@@ -20,6 +21,7 @@ import {
   updateTask,
   deleteTask,
 } from '../../services/firestoreService';
+import { pinBloomWidget } from '../../services/widgetDataService';
 import { TaskDocument } from '../../types';
 
 export default function HomeScreen() {
@@ -216,6 +218,9 @@ export default function HomeScreen() {
           onOpenJournal={() => router.push('/journal')}
           onOpenFocusMode={() => router.push('/focus-mode')}
         />
+
+        {/* 5.5. + ADD WIDGET ACTION CARD (Native Home Screen Widget Pinning) */}
+        <AddWidgetCard onPress={pinBloomWidget} />
 
         {/* 6. DAILY GOALS (To-Do List with Checkboxes, + Create Task, Edit & Delete) */}
         <DailyGoalsSection

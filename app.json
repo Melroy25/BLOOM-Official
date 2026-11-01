@@ -54,7 +54,24 @@
           "androidCollapsedTitle": "Bloom Reminder"
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "BloomHomeScreenWidget",
+              "label": "Bloom Quick Actions",
+              "minWidth": "320dp",
+              "minHeight": "120dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "description": "Quick shortcuts to SOS, Screen Time, and Heal Bubble",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ]
     ]
   }
 }
