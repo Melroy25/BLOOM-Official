@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
+import { useTheme } from '../../context/ThemeContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -112,11 +113,24 @@ const SingleParticle: React.FC<{ particle: ParticleData }> = ({ particle }) => {
 };
 
 export const FloatingParticles: React.FC = () => {
+  const { colors } = useTheme();
+
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {PARTICLES.map(p => (
-        <SingleParticle key={p.id} particle={p} />
-      ))}
+      {PARTICLES.map((p) => {
+        const resolvedColor =
+          p.color === '#789B83'
+            ? colors.accent
+            : p.color === '#E8F1E8'
+            ? colors.accentSoft
+            : p.color;
+        return (
+          <SingleParticle
+            key={p.id}
+            particle={{ ...p, color: resolvedColor }}
+          />
+        );
+      })}
     </View>
   );
 };

@@ -101,7 +101,7 @@ export const DailyGoalsSection: React.FC<DailyGoalsSectionProps> = ({
         </View>
 
         {totalCount > 0 && (
-          <View style={[styles.progressBadge, { backgroundColor: colors.lightSage }]}>
+          <View style={[styles.progressBadge, { backgroundColor: colors.accentSoft }]}>
             <Text style={[styles.progressBadgeText, { color: colors.primaryDark }]}>
               {completedCount} of {totalCount}
             </Text>

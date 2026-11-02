@@ -36,24 +36,24 @@ export const ACCENT_PALETTES: Record<AccentPalette, AccentTokens> = {
   },
   blue: {
     name: 'blue',
-    label: 'Sky Blue',
-    main: '#4A90E2', // Soft Sky Blue
+    label: 'Ocean Blue',
+    main: '#5B8DEF', // Ocean Blue
     soft: '#E3F2FD', // Light Ice Blue
-    text: '#1E3A8A',
-    glowTop: 'rgba(74, 144, 226, 0.32)',
+    text: '#1A365D',
+    glowTop: 'rgba(91, 141, 239, 0.32)',
     glowBottom: 'rgba(227, 242, 253, 0.22)',
-    glowTopDark: 'rgba(74, 144, 226, 0.20)',
+    glowTopDark: 'rgba(91, 141, 239, 0.20)',
     glowBottomDark: 'rgba(227, 242, 253, 0.10)',
   },
   pink: {
     name: 'pink',
-    label: 'Rose Pink',
-    main: '#E06D85', // Soft Rose Pink
-    soft: '#FCE4EC', // Light Blush
-    text: '#831843',
-    glowTop: 'rgba(224, 109, 133, 0.32)',
+    label: 'Soft Rose Pink',
+    main: '#E57373', // Soft Rose Pink
+    soft: '#FCE4EC', // Light Blush Pink
+    text: '#7A2727',
+    glowTop: 'rgba(229, 115, 115, 0.32)',
     glowBottom: 'rgba(252, 228, 236, 0.22)',
-    glowTopDark: 'rgba(224, 109, 133, 0.20)',
+    glowTopDark: 'rgba(229, 115, 115, 0.20)',
     glowBottomDark: 'rgba(252, 228, 236, 0.10)',
   },
   mint: {

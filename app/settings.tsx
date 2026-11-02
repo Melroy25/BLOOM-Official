@@ -260,20 +260,20 @@ export default function SettingsScreen() {
                   {
                     key: 'blue' as const,
                     name: 'Blue Theme',
-                    badge: 'Sky Blue',
-                    desc: 'Soft Sky Blue (#4A90E2) · Light Ice Blue (#E3F2FD) · Cool Blue Aura',
-                    primary: '#4A90E2',
+                    badge: 'Ocean Blue',
+                    desc: 'Ocean Blue (#5B8DEF) · Light Ice Blue (#E3F2FD) · Cool Blue Aura',
+                    primary: '#5B8DEF',
                     soft: '#E3F2FD',
-                    aura: 'rgba(74, 144, 226, 0.35)',
+                    aura: 'rgba(91, 141, 239, 0.35)',
                   },
                   {
                     key: 'pink' as const,
                     name: 'Pink Theme',
                     badge: 'Rose Pink',
-                    desc: 'Soft Rose Pink (#E06D85) · Light Blush (#FCE4EC) · Gentle Pink Aura',
-                    primary: '#E06D85',
+                    desc: 'Soft Rose Pink (#E57373) · Light Blush Pink (#FCE4EC) · Gentle Pink Aura',
+                    primary: '#E57373',
                     soft: '#FCE4EC',
-                    aura: 'rgba(224, 109, 133, 0.35)',
+                    aura: 'rgba(229, 115, 115, 0.35)',
                   },
                 ].map((item) => {
                   const isSelected = themeColor === item.key;

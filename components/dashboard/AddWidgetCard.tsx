@@ -113,8 +113,8 @@ export const AddWidgetCard: React.FC<AddWidgetCardProps> = ({ onPress }) => {
             onPress={() => setShowTestModal(true)}
             activeOpacity={0.75}
           >
-            <View style={[styles.iconCircle, { backgroundColor: '#E8F1E8' }]}>
-              <PlusCircle size={20} color="#365B45" strokeWidth={2.2} />
+            <View style={[styles.iconCircle, { backgroundColor: colors.accentSoft }]}>
+              <PlusCircle size={20} color={colors.accent} strokeWidth={2.2} />
             </View>
             <View style={styles.titleWrap}>
               <View style={styles.badgeRow}>
@@ -129,17 +129,17 @@ export const AddWidgetCard: React.FC<AddWidgetCardProps> = ({ onPress }) => {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.pinActionPill, { backgroundColor: '#E8F1E8' }]}
+            style={[styles.pinActionPill, { backgroundColor: colors.accentSoft }]}
             onPress={handlePin}
             activeOpacity={0.7}
             disabled={isPinning}
           >
             {isPinning ? (
-              <ActivityIndicator size="small" color="#365B45" />
+              <ActivityIndicator size="small" color={colors.accent} />
             ) : (
               <>
-                <Text style={styles.pinActionText}>Pin</Text>
-                <ExternalLink size={12} color="#365B45" strokeWidth={2.2} />
+                <Text style={[styles.pinActionText, { color: colors.accent }]}>Pin</Text>
+                <ExternalLink size={12} color={colors.accent} strokeWidth={2.2} />
               </>
             )}
           </TouchableOpacity>
@@ -156,11 +156,11 @@ export const AddWidgetCard: React.FC<AddWidgetCardProps> = ({ onPress }) => {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.miniBadge, { backgroundColor: '#E8F1E8', borderColor: '#D9EEE5' }]}
+            style={[styles.miniBadge, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}
             onPress={() => router.push('/tasks')}
             activeOpacity={0.7}
           >
-            <Text style={[styles.miniBadgeText, { color: '#365B45' }]}>⏳ {screenTimeText}</Text>
+            <Text style={[styles.miniBadgeText, { color: colors.accent }]}>⏳ {screenTimeText}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -176,8 +176,8 @@ export const AddWidgetCard: React.FC<AddWidgetCardProps> = ({ onPress }) => {
             onPress={() => setShowTestModal(true)}
             activeOpacity={0.7}
           >
-            <Eye size={13} color="#789B83" />
-            <Text style={styles.testButtonText}>Test</Text>
+            <Eye size={13} color={colors.accent} />
+            <Text style={[styles.testButtonText, { color: colors.accent }]}>Test</Text>
           </TouchableOpacity>
         </View>
 
@@ -187,8 +187,8 @@ export const AddWidgetCard: React.FC<AddWidgetCardProps> = ({ onPress }) => {
         {/* SECTION B: Persistent Notification Tray Widget (Duolingo-style) */}
         <View style={styles.notificationSection}>
           <View style={styles.notificationLeft}>
-            <View style={[styles.iconCircle, { backgroundColor: '#FAF8F2' }]}>
-              <Bell size={18} color="#789B83" strokeWidth={2.2} />
+            <View style={[styles.iconCircle, { backgroundColor: colors.accentSoft }]}>
+              <Bell size={18} color={colors.accent} strokeWidth={2.2} />
             </View>
             <View style={styles.titleWrap}>
               <View style={styles.badgeRow}>
@@ -196,9 +196,9 @@ export const AddWidgetCard: React.FC<AddWidgetCardProps> = ({ onPress }) => {
                   Notification Tray Widget
                 </Text>
                 {isNotificationEnabled && (
-                  <View style={styles.activeDotPill}>
-                    <View style={styles.activeGreenDot} />
-                    <Text style={styles.activeDotText}>Active</Text>
+                  <View style={[styles.activeDotPill, { backgroundColor: colors.accentSoft }]}>
+                    <View style={[styles.activeGreenDot, { backgroundColor: colors.accent }]} />
+                    <Text style={[styles.activeDotText, { color: colors.accent }]}>Active</Text>
                   </View>
                 )}
               </View>
@@ -210,13 +210,13 @@ export const AddWidgetCard: React.FC<AddWidgetCardProps> = ({ onPress }) => {
 
           <View style={styles.toggleWrap}>
             {isTogglingNotification ? (
-              <ActivityIndicator size="small" color="#789B83" />
+              <ActivityIndicator size="small" color={colors.accent} />
             ) : (
               <Switch
                 value={isNotificationEnabled}
                 onValueChange={handleToggleNotification}
-                trackColor={{ false: '#E8ECE9', true: '#A8C5B2' }}
-                thumbColor={isNotificationEnabled ? '#365B45' : '#FFFFFF'}
+                trackColor={{ false: '#E8ECE9', true: colors.accentSoft }}
+                thumbColor={isNotificationEnabled ? colors.accent : '#FFFFFF'}
               />
             )}
           </View>
@@ -299,32 +299,32 @@ export const AddWidgetCard: React.FC<AddWidgetCardProps> = ({ onPress }) => {
                     }}
                     activeOpacity={0.75}
                   >
-                    <View style={[styles.badgePill, { backgroundColor: '#789B83' }]}>
+                    <View style={[styles.badgePill, { backgroundColor: colors.accent }]}>
                       <Text style={styles.badgePillText}>⏳ Usage</Text>
                     </View>
                     <View style={styles.shortcutContent}>
-                      <Text style={[styles.shortcutName, { color: '#29332E' }]} numberOfLines={1}>
+                      <Text style={[styles.shortcutName, { color: colors.darkText }]} numberOfLines={1}>
                         {screenTimeText}
                       </Text>
-                      <Text style={styles.shortcutDesc}>Screen Time</Text>
+                      <Text style={[styles.shortcutDesc, { color: colors.mutedText }]}>Screen Time</Text>
                     </View>
                   </TouchableOpacity>
 
                   {/* 3. Heal Bubble Button */}
                   <TouchableOpacity
-                    style={[styles.shortcutCard, { borderColor: '#D9EEE5' }]}
+                    style={[styles.shortcutCard, { borderColor: colors.border }]}
                     onPress={() => {
                       setShowTestModal(false);
                       router.push('/heal-bubble');
                     }}
                     activeOpacity={0.75}
                   >
-                    <View style={[styles.badgePill, { backgroundColor: '#E8F1E8' }]}>
-                      <Text style={[styles.badgePillText, { color: '#365B45' }]}>🫧 Heal</Text>
+                    <View style={[styles.badgePill, { backgroundColor: colors.accentSoft }]}>
+                      <Text style={[styles.badgePillText, { color: colors.primaryDark }]}>🫧 Heal</Text>
                     </View>
                     <View style={styles.shortcutContent}>
-                      <Text style={[styles.shortcutName, { color: '#29332E' }]}>Heal Bubble</Text>
-                      <Text style={styles.shortcutDesc} numberOfLines={1}>
+                      <Text style={[styles.shortcutName, { color: colors.darkText }]}>Heal Bubble</Text>
+                      <Text style={[styles.shortcutDesc, { color: colors.mutedText }]} numberOfLines={1}>
                         {healBubbleStatus}
                       </Text>
                     </View>
@@ -334,7 +334,7 @@ export const AddWidgetCard: React.FC<AddWidgetCardProps> = ({ onPress }) => {
 
               {/* Pin Request Action */}
               <TouchableOpacity
-                style={styles.pinSystemButton}
+                style={[styles.pinSystemButton, { backgroundColor: colors.accent }]}
                 onPress={handlePin}
                 activeOpacity={0.8}
                 disabled={isPinning}

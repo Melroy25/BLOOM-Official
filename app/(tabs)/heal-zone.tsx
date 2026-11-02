@@ -459,23 +459,23 @@ export default function HealZoneScreen() {
 
         {/* Confirmation Toast */}
         {toastMessage && (
-          <View style={[styles.toastContainer, Shadows.md]}>
-            <CheckCircle2 size={18} color={Colors.primaryDark} strokeWidth={2} />
-            <Text style={styles.toastText}>{toastMessage}</Text>
+          <View style={[styles.toastContainer, Shadows.md, { backgroundColor: colors.accentSoft, borderColor: colors.accent }]}>
+            <CheckCircle2 size={18} color={colors.primaryDark} strokeWidth={2} />
+            <Text style={[styles.toastText, { color: colors.primaryDark }]}>{toastMessage}</Text>
           </View>
         )}
 
         {/* SECTION 2 — DAILY QUOTE HERO BANNER */}
         <View style={styles.heroQuoteSection}>
-          <View style={[styles.heroQuoteCard, Shadows.sm]}>
-            <View style={styles.quoteEmojiBadge}>
+          <View style={[styles.heroQuoteCard, Shadows.sm, { borderColor: colors.border }]}>
+            <View style={[styles.quoteEmojiBadge, { backgroundColor: colors.accentSoft }]}>
               <Text style={styles.quoteEmoji}>✨</Text>
             </View>
             <View style={styles.quoteTextContainer}>
-              <Text style={styles.quoteText}>
+              <Text style={[styles.quoteText, { color: colors.darkText }]}>
                 "Growth happens one calm breath at a time."
               </Text>
-              <Text style={styles.quoteAuthor}>— Daily Whisper</Text>
+              <Text style={[styles.quoteAuthor, { color: colors.primaryDark }]}>— Daily Whisper</Text>
             </View>
           </View>
         </View>
@@ -485,11 +485,11 @@ export default function HealZoneScreen() {
           <View style={styles.gridRow}>
             {/* CARD 1 — HEAL WITH ME */}
             <TouchableOpacity
-              style={[styles.featureCard, Shadows.sm]}
+              style={[styles.featureCard, Shadows.sm, { borderColor: colors.border }]}
               onPress={() => router.push('/heal-bubble')}
               activeOpacity={0.82}
             >
-              <View style={[styles.cardIconCircle, { backgroundColor: Colors.lightSage }]}>
+              <View style={[styles.cardIconCircle, { backgroundColor: colors.accentSoft }]}>
                 <Text style={styles.cardEmoji}>🧘</Text>
               </View>
               <View style={styles.cardTextContent}>
@@ -568,9 +568,9 @@ export default function HealZoneScreen() {
           /* STATE A: Horizontal Scrollable Mood Selector */
           <View style={styles.moodSection}>
             <View style={styles.moodSectionHeader}>
-              <Text style={styles.sectionTitle}>Select your mood</Text>
-              <View style={styles.scrollIndicatorPill}>
-                <Text style={styles.scrollIndicatorText}>📜 scroll</Text>
+              <Text style={[styles.sectionTitle, { color: colors.darkText }]}>Select your mood</Text>
+              <View style={[styles.scrollIndicatorPill, { backgroundColor: colors.accentSoft }]}>
+                <Text style={[styles.scrollIndicatorText, { color: colors.primaryDark }]}>📜 scroll</Text>
               </View>
             </View>
 
@@ -582,12 +582,12 @@ export default function HealZoneScreen() {
               {MOOD_LIST.map(item => (
                 <TouchableOpacity
                   key={item.id}
-                  style={[styles.moodCard, Shadows.sm]}
+                  style={[styles.moodCard, Shadows.sm, { borderColor: colors.border }]}
                   onPress={() => handleSelectMood(item)}
                   activeOpacity={0.75}
                 >
                   <Text style={styles.moodEmoji}>{item.emoji}</Text>
-                  <Text style={styles.moodName}>{item.name}</Text>
+                  <Text style={[styles.moodName, { color: colors.darkText }]}>{item.name}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -595,9 +595,9 @@ export default function HealZoneScreen() {
         ) : (
           /* STATE B: Transformed Personalized Mood Card */
           <View style={styles.loggedMoodSection}>
-            <View style={[styles.loggedMoodCard, Shadows.sm]}>
+            <View style={[styles.loggedMoodCard, Shadows.sm, { borderColor: colors.border }]}>
               <View style={styles.loggedMoodLeft}>
-                <View style={styles.loggedEmojiCircle}>
+                <View style={[styles.loggedEmojiCircle, { backgroundColor: colors.accentSoft, borderColor: colors.accent }]}>
                   <Text style={styles.loggedEmoji}>
                     {MOOD_DATA[selectedMood].emoji}
                   </Text>
@@ -606,23 +606,23 @@ export default function HealZoneScreen() {
 
               <View style={styles.loggedMoodCenter}>
                 <View style={styles.loggedTitleRow}>
-                  <Text style={styles.loggedMoodTitle}>{selectedMood}</Text>
-                  <View style={styles.loggedBadge}>
-                    <Text style={styles.loggedBadgeText}>Logged</Text>
+                  <Text style={[styles.loggedMoodTitle, { color: colors.darkText }]}>{selectedMood}</Text>
+                  <View style={[styles.loggedBadge, { backgroundColor: colors.accentSoft }]}>
+                    <Text style={[styles.loggedBadgeText, { color: colors.primaryDark }]}>Logged</Text>
                   </View>
                 </View>
-                <Text style={styles.loggedMoodQuote}>
+                <Text style={[styles.loggedMoodQuote, { color: colors.mutedText }]}>
                   "{MOOD_DATA[selectedMood].quote}"
                 </Text>
               </View>
 
               <TouchableOpacity
-                style={styles.changeMoodBtn}
+                style={[styles.changeMoodBtn, { borderColor: colors.border }]}
                 onPress={() => setSelectedMood(null)}
                 activeOpacity={0.7}
               >
-                <RotateCcw size={14} color={Colors.primaryDark} strokeWidth={2.2} />
-                <Text style={styles.changeMoodText}>Change</Text>
+                <RotateCcw size={14} color={colors.primaryDark} strokeWidth={2.2} />
+                <Text style={[styles.changeMoodText, { color: colors.primaryDark }]}>Change</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -630,29 +630,29 @@ export default function HealZoneScreen() {
 
         {/* SECTION 5 — FOCUS WITH ME CARD (WITH 1-MIN POP-UP TRIGGER) */}
         <View style={styles.focusSection}>
-          <View style={[styles.focusCard, Shadows.md]}>
+          <View style={[styles.focusCard, Shadows.md, { borderColor: colors.border }]}>
             <View style={styles.focusTopRow}>
-              <View style={styles.focusBadge}>
-                <Wind size={16} color={Colors.primaryDark} strokeWidth={2.2} />
-                <Text style={styles.focusBadgeText}>1-MIN PRACTICE</Text>
+              <View style={[styles.focusBadge, { backgroundColor: colors.accentSoft }]}>
+                <Wind size={16} color={colors.primaryDark} strokeWidth={2.2} />
+                <Text style={[styles.focusBadgeText, { color: colors.primaryDark }]}>1-MIN PRACTICE</Text>
               </View>
               <View style={styles.focusTimeTag}>
-                <Clock size={12} color={Colors.mutedText} strokeWidth={2} />
-                <Text style={styles.focusTimeText}>60 secs</Text>
+                <Clock size={12} color={colors.mutedText} strokeWidth={2} />
+                <Text style={[styles.focusTimeText, { color: colors.mutedText }]}>60 secs</Text>
               </View>
             </View>
 
-            <Text style={styles.focusTitle}>Focus with me</Text>
-            <Text style={styles.focusSubtitle}>
+            <Text style={[styles.focusTitle, { color: colors.darkText }]}>Focus with me</Text>
+            <Text style={[styles.focusSubtitle, { color: colors.mutedText }]}>
               Clear your mind, release stress, and regain steady attention with guided box breathing.
             </Text>
 
             <TouchableOpacity
-              style={styles.focusButton}
+              style={[styles.focusButton, { backgroundColor: colors.accent }]}
               onPress={handleStartFocusSession}
               activeOpacity={0.85}
             >
-              <Play size={16} color={Colors.white} fill={Colors.white} />
+              <Play size={16} color="#FFFFFF" fill="#FFFFFF" />
               <Text style={styles.focusButtonText}>Start a session</Text>
             </TouchableOpacity>
           </View>
@@ -695,13 +695,13 @@ export default function HealZoneScreen() {
               <Text style={styles.modalBackText}>Focus</Text>
             </TouchableOpacity>
 
-            <View style={styles.boxBreathingPill}>
-              <Text style={styles.boxBreathingText}>Box Breathing • 4-4-4-4</Text>
+            <View style={[styles.boxBreathingPill, { backgroundColor: colors.accentSoft }]}>
+              <Text style={[styles.boxBreathingText, { color: colors.primaryDark }]}>Box Breathing • 4-4-4-4</Text>
             </View>
 
-            <View style={styles.timerBadge}>
-              <Clock size={12} color={Colors.primaryDark} strokeWidth={2.2} />
-              <Text style={styles.timerBadgeText}>{formattedCountdown}</Text>
+            <View style={[styles.timerBadge, { borderColor: colors.border }]}>
+              <Clock size={12} color={colors.primaryDark} strokeWidth={2.2} />
+              <Text style={[styles.timerBadgeText, { color: colors.primaryDark }]}>{formattedCountdown}</Text>
             </View>
           </View>
 
@@ -715,7 +715,7 @@ export default function HealZoneScreen() {
                     key={step}
                     style={[
                       styles.phaseStepPill,
-                      isActive && styles.phaseStepPillActive,
+                      isActive && [styles.phaseStepPillActive, { backgroundColor: colors.accent }],
                     ]}
                   >
                     <Text
@@ -737,6 +737,7 @@ export default function HealZoneScreen() {
                 style={[
                   styles.phaseLineFill,
                   {
+                    backgroundColor: colors.accent,
                     width: isSessionCompleted
                       ? '100%'
                       : `${Math.min(100, ((cycleSecond + 1) / 16) * 100)}%`,
@@ -751,22 +752,25 @@ export default function HealZoneScreen() {
             <Animated.View
               style={[
                 styles.breathingOuterRing,
-                { transform: [{ scale: scaleAnim }] },
+                {
+                  backgroundColor: colors.glowBottom,
+                  transform: [{ scale: scaleAnim }],
+                },
               ]}
             >
-              <View style={styles.breathingMiddleRing}>
-                <View style={styles.breathingCore}>
+              <View style={[styles.breathingMiddleRing, { backgroundColor: colors.glowTop }]}>
+                <View style={[styles.breathingCore, { borderColor: colors.accent }]}>
                   <Sparkles
                     size={20}
-                    color={Colors.primary}
+                    color={colors.accent}
                     strokeWidth={2}
                     style={{ marginBottom: 4 }}
                   />
-                  <Text style={styles.breathingPhaseText}>
+                  <Text style={[styles.breathingPhaseText, { color: colors.darkText }]}>
                     {isSessionCompleted ? 'Done ✨' : phaseInstruction}
                   </Text>
                   {!isSessionCompleted && (
-                    <Text style={styles.breathingCounterText}>
+                    <Text style={[styles.breathingCounterText, { color: colors.primaryDark }]}>
                       {phaseTimeLeft}s
                     </Text>
                   )}
@@ -777,8 +781,8 @@ export default function HealZoneScreen() {
             {/* Post-session celebratory text */}
             {isSessionCompleted && (
               <View style={styles.completionBanner}>
-                <Text style={styles.completionTitle}>Session Complete! ✨</Text>
-                <Text style={styles.completionSubtitle}>
+                <Text style={[styles.completionTitle, { color: colors.primaryDark }]}>Session Complete! ✨</Text>
+                <Text style={[styles.completionSubtitle, { color: colors.mutedText }]}>
                   You've reclaimed 1 full minute of mindful focus. Carry this calm forward.
                 </Text>
               </View>
@@ -797,14 +801,14 @@ export default function HealZoneScreen() {
               activeOpacity={0.8}
             >
               {isAudioMuted ? (
-                <VolumeX size={16} color={Colors.mutedText} strokeWidth={2} />
+                <VolumeX size={16} color={colors.mutedText} strokeWidth={2} />
               ) : (
-                <Volume2 size={16} color={Colors.primaryDark} strokeWidth={2.2} />
+                <Volume2 size={16} color={colors.primaryDark} strokeWidth={2.2} />
               )}
               <Text
                 style={[
                   styles.audioBadgeText,
-                  isAudioMuted && styles.audioBadgeTextMuted,
+                  { color: isAudioMuted ? colors.mutedText : colors.primaryDark },
                 ]}
               >
                 🌲 Forest Rain {isAudioMuted ? '(Muted)' : '(Playing)'}

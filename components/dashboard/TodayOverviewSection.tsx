@@ -50,8 +50,8 @@ export const TodayOverviewSection: React.FC<TodayOverviewSectionProps> = ({
           accessibilityLabel={`Tasks Done: ${tasksDoneCount} of ${totalTasksCount} completed`}
         >
           <View style={styles.tileTopRow}>
-            <View style={[styles.iconPill, { backgroundColor: '#E8F1E8' }]}>
-              <CheckCircle2 size={18} color="#365B45" strokeWidth={2.2} />
+            <View style={[styles.iconPill, { backgroundColor: colors.accentSoft }]}>
+              <CheckCircle2 size={18} color={colors.accent} strokeWidth={2.2} />
             </View>
             <Text style={[styles.tileCategory, { color: colors.mutedText }]}>Tasks</Text>
           </View>

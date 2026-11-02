@@ -230,10 +230,10 @@ export default function TasksMainHubScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ── 2. Top Rotating Quote Ticker Card ────────────────────────── */}
-        <View style={[styles.quoteCardContainer, Shadows.sm]}>
+        <View style={[styles.quoteCardContainer, Shadows.sm, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
           {/* Left Circular Quote Badge */}
           <View style={styles.quoteIconBadge}>
-            <Quote size={18} color="#365B45" strokeWidth={2.4} />
+            <Quote size={18} color={colors.accent} strokeWidth={2.4} />
           </View>
 
           {/* Middle Animated Quote Text Moving Automatically to the Right */}
@@ -253,8 +253,8 @@ export default function TasksMainHubScreen() {
 
           {/* Right Automated Status Pill (No manual pressing needed) */}
           <View style={styles.quoteAutoPill}>
-            <View style={styles.autoPulsingDot} />
-            <Text style={styles.quoteAutoText}>
+            <View style={[styles.autoPulsingDot, { backgroundColor: colors.accent }]} />
+            <Text style={[styles.quoteAutoText, { color: colors.accent }]}>
               {quoteIdx + 1}/{WELLNESS_QUOTES.length}
             </Text>
           </View>
@@ -267,105 +267,105 @@ export default function TasksMainHubScreen() {
           <View style={styles.gridContainer}>
             {/* Card 1: Screen Time */}
             <TouchableOpacity
-              style={[styles.gridCard, { width: cardWidth }, Shadows.sm]}
+              style={[styles.gridCard, { width: cardWidth, backgroundColor: colors.white, borderColor: colors.border }, Shadows.sm]}
               activeOpacity={0.8}
               onPress={() => router.push('/tasks/screen-time' as any)}
             >
               <View style={styles.cardTopRow}>
-                <View style={[styles.cardIconBox, { backgroundColor: '#D9EEE5' }]}>
-                  <Hourglass size={18} color="#365B45" strokeWidth={2.2} />
+                <View style={[styles.cardIconBox, { backgroundColor: colors.accentSoft }]}>
+                  <Hourglass size={18} color={colors.accent} strokeWidth={2.2} />
                 </View>
-                <View style={styles.cardBadgeMint}>
-                  <Text style={styles.cardBadgeMintText}>4h 31m</Text>
+                <View style={[styles.cardBadgeMint, { backgroundColor: colors.accentSoft }]}>
+                  <Text style={[styles.cardBadgeMintText, { color: colors.primaryDark }]}>4h 31m</Text>
                 </View>
               </View>
 
-              <Text style={styles.cardTitle}>Screen Time</Text>
-              <Text style={styles.cardSubtitle} numberOfLines={2}>
+              <Text style={[styles.cardTitle, { color: colors.darkText }]}>Screen Time</Text>
+              <Text style={[styles.cardSubtitle, { color: colors.mutedText }]} numberOfLines={2}>
                 Monitor usage & set limits
               </Text>
 
               <View style={styles.cardFooter}>
-                <Text style={styles.cardOpenLabel}>Open</Text>
-                <ArrowRight size={13} color="#365B45" strokeWidth={2.5} />
+                <Text style={[styles.cardOpenLabel, { color: colors.accent }]}>Open</Text>
+                <ArrowRight size={13} color={colors.accent} strokeWidth={2.5} />
               </View>
             </TouchableOpacity>
 
             {/* Card 2: Student Task */}
             <TouchableOpacity
-              style={[styles.gridCard, { width: cardWidth }, Shadows.sm]}
+              style={[styles.gridCard, { width: cardWidth, backgroundColor: colors.white, borderColor: colors.border }, Shadows.sm]}
               activeOpacity={0.8}
               onPress={() => router.push('/tasks/student-task' as any)}
             >
               <View style={styles.cardTopRow}>
-                <View style={[styles.cardIconBox, { backgroundColor: '#D9EEE5' }]}>
-                  <CheckSquare size={18} color="#365B45" strokeWidth={2.2} />
+                <View style={[styles.cardIconBox, { backgroundColor: colors.accentSoft }]}>
+                  <CheckSquare size={18} color={colors.accent} strokeWidth={2.2} />
                 </View>
-                <View style={styles.cardBadgeMint}>
-                  <Text style={styles.cardBadgeMintText}>{pendingCount} pending</Text>
+                <View style={[styles.cardBadgeMint, { backgroundColor: colors.accentSoft }]}>
+                  <Text style={[styles.cardBadgeMintText, { color: colors.primaryDark }]}>{pendingCount} pending</Text>
                 </View>
               </View>
 
-              <Text style={styles.cardTitle}>Student Task</Text>
-              <Text style={styles.cardSubtitle} numberOfLines={2}>
+              <Text style={[styles.cardTitle, { color: colors.darkText }]}>Student Task</Text>
+              <Text style={[styles.cardSubtitle, { color: colors.mutedText }]} numberOfLines={2}>
                 Assignments & daily to-dos
               </Text>
 
               <View style={styles.cardFooter}>
-                <Text style={styles.cardOpenLabel}>Open</Text>
-                <ArrowRight size={13} color="#365B45" strokeWidth={2.5} />
+                <Text style={[styles.cardOpenLabel, { color: colors.accent }]}>Open</Text>
+                <ArrowRight size={13} color={colors.accent} strokeWidth={2.5} />
               </View>
             </TouchableOpacity>
 
             {/* Card 3: Sleep Tracking */}
             <TouchableOpacity
-              style={[styles.gridCard, { width: cardWidth }, Shadows.sm]}
+              style={[styles.gridCard, { width: cardWidth, backgroundColor: colors.white, borderColor: colors.border }, Shadows.sm]}
               activeOpacity={0.8}
               onPress={() => router.push('/tasks/tracking' as any)}
             >
               <View style={styles.cardTopRow}>
-                <View style={[styles.cardIconBox, { backgroundColor: '#D9EEE5' }]}>
-                  <Moon size={18} color="#365B45" strokeWidth={2.2} />
+                <View style={[styles.cardIconBox, { backgroundColor: colors.accentSoft }]}>
+                  <Moon size={18} color={colors.accent} strokeWidth={2.2} />
                 </View>
-                <View style={styles.cardBadgeMint}>
-                  <Text style={styles.cardBadgeMintText}>7h 45m</Text>
+                <View style={[styles.cardBadgeMint, { backgroundColor: colors.accentSoft }]}>
+                  <Text style={[styles.cardBadgeMintText, { color: colors.primaryDark }]}>7h 45m</Text>
                 </View>
               </View>
 
-              <Text style={styles.cardTitle}>Sleep Tracking</Text>
-              <Text style={styles.cardSubtitle} numberOfLines={2}>
+              <Text style={[styles.cardTitle, { color: colors.darkText }]}>Sleep Tracking</Text>
+              <Text style={[styles.cardSubtitle, { color: colors.mutedText }]} numberOfLines={2}>
                 Rest cycles & night patterns
               </Text>
 
               <View style={styles.cardFooter}>
-                <Text style={styles.cardOpenLabel}>Open</Text>
-                <ArrowRight size={13} color="#365B45" strokeWidth={2.5} />
+                <Text style={[styles.cardOpenLabel, { color: colors.accent }]}>Open</Text>
+                <ArrowRight size={13} color={colors.accent} strokeWidth={2.5} />
               </View>
             </TouchableOpacity>
 
             {/* Card 4: Goals & Habits */}
             <TouchableOpacity
-              style={[styles.gridCard, { width: cardWidth }, Shadows.sm]}
+              style={[styles.gridCard, { width: cardWidth, backgroundColor: colors.white, borderColor: colors.border }, Shadows.sm]}
               activeOpacity={0.8}
               onPress={() => router.push('/tasks/goals' as any)}
             >
               <View style={styles.cardTopRow}>
-                <View style={[styles.cardIconBox, { backgroundColor: '#D9EEE5' }]}>
-                  <Target size={18} color="#365B45" strokeWidth={2.2} />
+                <View style={[styles.cardIconBox, { backgroundColor: colors.accentSoft }]}>
+                  <Target size={18} color={colors.accent} strokeWidth={2.2} />
                 </View>
-                <View style={styles.cardBadgeMint}>
-                  <Text style={styles.cardBadgeMintText}>4 on track</Text>
+                <View style={[styles.cardBadgeMint, { backgroundColor: colors.accentSoft }]}>
+                  <Text style={[styles.cardBadgeMintText, { color: colors.primaryDark }]}>4 on track</Text>
                 </View>
               </View>
 
-              <Text style={styles.cardTitle}>Goals & Habits</Text>
-              <Text style={styles.cardSubtitle} numberOfLines={2}>
+              <Text style={[styles.cardTitle, { color: colors.darkText }]}>Goals & Habits</Text>
+              <Text style={[styles.cardSubtitle, { color: colors.mutedText }]} numberOfLines={2}>
                 Personal growth & milestones
               </Text>
 
               <View style={styles.cardFooter}>
-                <Text style={styles.cardOpenLabel}>Open</Text>
-                <ArrowRight size={13} color="#365B45" strokeWidth={2.5} />
+                <Text style={[styles.cardOpenLabel, { color: colors.accent }]}>Open</Text>
+                <ArrowRight size={13} color={colors.accent} strokeWidth={2.5} />
               </View>
             </TouchableOpacity>
           </View>
@@ -373,30 +373,30 @@ export default function TasksMainHubScreen() {
 
         {/* ── Assignments Quick Card Link ─────────────────────────────── */}
         <TouchableOpacity
-          style={[styles.assignmentsCardLink, Shadows.sm]}
+          style={[styles.assignmentsCardLink, { backgroundColor: colors.white, borderColor: colors.border }, Shadows.sm]}
           onPress={() => router.push('/tasks/assignments' as any)}
           activeOpacity={0.8}
         >
           <View style={styles.assignmentsLinkLeft}>
-            <View style={styles.assignmentsIconCircle}>
-              <CheckSquare size={18} color="#365B45" strokeWidth={2.2} />
+            <View style={[styles.assignmentsIconCircle, { backgroundColor: colors.accentSoft }]}>
+              <CheckSquare size={18} color={colors.accent} strokeWidth={2.2} />
             </View>
             <View>
-              <Text style={styles.assignmentsLinkTitle}>Assignments & Course Deadlines</Text>
-              <Text style={styles.assignmentsLinkSub}>
+              <Text style={[styles.assignmentsLinkTitle, { color: colors.darkText }]}>Assignments & Course Deadlines</Text>
+              <Text style={[styles.assignmentsLinkSub, { color: colors.mutedText }]}>
                 {pendingCount} pending submissions • Next due tomorrow
               </Text>
             </View>
           </View>
-          <ArrowRight size={16} color="#365B45" strokeWidth={2.5} />
+          <ArrowRight size={16} color={colors.accent} strokeWidth={2.5} />
         </TouchableOpacity>
 
         {/* ── 4. Interactive Quick Task Typing Bar ─────────────────────── */}
-        <View style={[styles.quickTaskCard, Shadows.sm]}>
-          <Text style={styles.quickCardHeading}>Daily Action Checklist</Text>
+        <View style={[styles.quickTaskCard, { backgroundColor: colors.white, borderColor: colors.border }, Shadows.sm]}>
+          <Text style={[styles.quickCardHeading, { color: colors.darkText }]}>Daily Action Checklist</Text>
           <View style={styles.inputInnerRow}>
             <TextInput
-              style={styles.quickInput}
+              style={[styles.quickInput, { color: colors.darkText, borderColor: colors.border }]}
               placeholder="Type to add a coursework task..."
               placeholderTextColor="#7B857F"
               value={quickInput}
@@ -405,7 +405,7 @@ export default function TasksMainHubScreen() {
               returnKeyType="done"
             />
             <TouchableOpacity
-              style={[styles.quickAddButton, !quickInput.trim() && { opacity: 0.5 }]}
+              style={[styles.quickAddButton, { backgroundColor: colors.accent }, !quickInput.trim() && { opacity: 0.5 }]}
               onPress={handleQuickAdd}
               disabled={!quickInput.trim()}
               activeOpacity={0.8}
@@ -424,7 +424,7 @@ export default function TasksMainHubScreen() {
                 activeOpacity={0.7}
               >
                 {item.completed ? (
-                  <CheckCircle2 size={18} color="#6AAF7D" strokeWidth={2.2} />
+                  <CheckCircle2 size={18} color={colors.accent} strokeWidth={2.2} />
                 ) : (
                   <Circle size={18} color="#7B857F" strokeWidth={1.8} />
                 )}
@@ -441,20 +441,20 @@ export default function TasksMainHubScreen() {
 
         {/* ── 5. Quick Access to Hardware & Safety ─────────────────────── */}
         <TouchableOpacity
-          style={[styles.moreModulesBanner, Shadows.sm]}
+          style={[styles.moreModulesBanner, Shadows.sm, { backgroundColor: colors.white, borderColor: colors.border }]}
           onPress={() => setActiveDetailModule('more')}
           activeOpacity={0.8}
         >
           <View style={styles.moreLeft}>
-            <View style={styles.moreIconBox}>
-              <HeartPulse size={18} color="#365B45" strokeWidth={2} />
+            <View style={[styles.moreIconBox, { backgroundColor: colors.accentSoft }]}>
+              <HeartPulse size={18} color={colors.accent} strokeWidth={2} />
             </View>
             <View>
-              <Text style={styles.moreTitle}>Hardware & Emergency Hub</Text>
-              <Text style={styles.moreDesc}>SOS Signal, Smartwatch BLE & Health Connect</Text>
+              <Text style={[styles.moreTitle, { color: colors.darkText }]}>Hardware & Emergency Hub</Text>
+              <Text style={[styles.moreDesc, { color: colors.mutedText }]}>SOS Signal, Smartwatch BLE & Health Connect</Text>
             </View>
           </View>
-          <ChevronRight size={18} color="#7B857F" />
+          <ChevronRight size={18} color={colors.mutedText} />
         </TouchableOpacity>
 
         <View style={{ height: 120 }} />

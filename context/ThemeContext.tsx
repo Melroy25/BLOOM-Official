@@ -85,7 +85,7 @@ interface ThemeContextType extends SettingsState {
 
 const STORAGE_KEYS = {
   THEME_MODE: '@bloom_theme_mode',
-  THEME_COLOR: '@bloom_theme_color',
+  THEME_COLOR: '@bloom_app_theme_color',
   ACCENT_PALETTE: '@bloom_accent_palette',
   ADAPT_MOOD: '@bloom_adapt_mood',
   LAST_MOOD: '@bloom_last_mood',
@@ -155,7 +155,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
   const [themeColor, setThemeColorState] = useState<ThemeColor>('green');
   const [accentPalette, setAccentPaletteState] = useState<AccentPalette>('green');
-  const [adaptToMood, setAdaptToMoodState] = useState<boolean>(true);
+  const [adaptToMood, setAdaptToMoodState] = useState<boolean>(false);
   const [currentMood, setCurrentMoodState] = useState<MoodType | null>(null);
 
   // Reminders & Privacy
@@ -175,7 +175,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           setThemeModeState(storedTheme);
         }
 
-        const storedColor = await AsyncStorage.getItem(STORAGE_KEYS.THEME_COLOR);
+        const storedColor = (await AsyncStorage.getItem(STORAGE_KEYS.THEME_COLOR)) || (await AsyncStorage.getItem('@bloom_theme_color'));
         if (storedColor === 'green' || storedColor === 'blue' || storedColor === 'pink') {
           setThemeColorState(storedColor);
           setAccentPaletteState(storedColor);
@@ -256,9 +256,11 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const setThemeColor = async (color: ThemeColor) => {
     setThemeColorState(color);
     setAccentPaletteState(color);
+    setAdaptToMoodState(false);
     await AsyncStorage.setItem(STORAGE_KEYS.THEME_COLOR, color);
     await AsyncStorage.setItem(STORAGE_KEYS.ACCENT_PALETTE, color);
-    syncToFirestore({ themeColor: color, accentPalette: color });
+    await AsyncStorage.setItem(STORAGE_KEYS.ADAPT_MOOD, 'false');
+    syncToFirestore({ themeColor: color, accentPalette: color, adaptThemeToMood: false });
   };
 
   const setAccentPalette = async (palette: AccentPalette) => {
@@ -331,8 +333,11 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // 3. Default mint
   const colors = useMemo<ThemeColors>(() => {
     const base = isDark ? baseDarkColors : baseLightColors;
-    const activePaletteKey = resolveActiveAccent(themeColor || accentPalette, adaptToMood, currentMood);
-    const tokens = ACCENT_PALETTES[activePaletteKey] || ACCENT_PALETTES.green;
+    let activePaletteKey: AccentPalette = themeColor || 'green';
+    if (adaptToMood && currentMood) {
+      activePaletteKey = resolveActiveAccent(themeColor, adaptToMood, currentMood);
+    }
+    const tokens = ACCENT_PALETTES[activePaletteKey] || ACCENT_PALETTES[themeColor] || ACCENT_PALETTES.green;
 
     const frosted = isDark ? FrostedTokens.dark : FrostedTokens.light;
 
@@ -342,6 +347,10 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return {
       ...base,
       primary: tokens.main,
+      primaryDark: isDark
+        ? (activeThemeColor === 'blue' ? '#60A5FA' : activeThemeColor === 'pink' ? '#F87171' : '#34D399')
+        : (activeThemeColor === 'blue' ? '#1D4ED8' : activeThemeColor === 'pink' ? '#BE185D' : '#204731'),
+      primaryLight: tokens.soft,
       accent: tokens.main,
       accentSoft: tokens.soft,
       accentText: tokens.text,

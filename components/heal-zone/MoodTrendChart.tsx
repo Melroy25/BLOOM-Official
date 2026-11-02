@@ -16,6 +16,7 @@ import { Spacing, BorderRadius } from '../../constants/spacing';
 import { Shadows } from '../../constants/shadows';
 import { SectionHeader } from '../common/SectionHeader';
 import { MoodChartPoint } from '../../types';
+import { useTheme } from '../../context/ThemeContext';
 
 interface MoodTrendChartProps {
   sevenDayData: MoodChartPoint[];
@@ -28,6 +29,7 @@ export const MoodTrendChart: React.FC<MoodTrendChartProps> = ({
   sevenDayData,
   thirtyDayData,
 }) => {
+  const { colors } = useTheme();
   const [period, setPeriod] = useState<'7d' | '30d'>('7d');
   const data = period === '7d' ? sevenDayData : thirtyDayData;
 
@@ -118,8 +120,8 @@ export const MoodTrendChart: React.FC<MoodTrendChartProps> = ({
         <View style={styles.cardHeader}>
           <View style={styles.headerTitleContainer}>
             <View style={styles.trendBadge}>
-              <TrendingUp size={14} color={Colors.primary} strokeWidth={2.2} />
-              <Text style={styles.trendBadgeText}>EMOTIONAL FLOW</Text>
+              <TrendingUp size={14} color={colors.accent} strokeWidth={2.2} />
+              <Text style={[styles.trendBadgeText, { color: colors.primaryDark }]}>EMOTIONAL FLOW</Text>
             </View>
             <Text style={styles.avgText}>{summaryText}</Text>
           </View>
@@ -129,7 +131,7 @@ export const MoodTrendChart: React.FC<MoodTrendChartProps> = ({
             <TouchableOpacity
               style={[
                 styles.toggleBtn,
-                period === '7d' && styles.toggleBtnActive,
+                period === '7d' && [styles.toggleBtnActive, { backgroundColor: colors.accent }],
               ]}
               onPress={() => setPeriod('7d')}
               activeOpacity={0.7}
@@ -147,7 +149,7 @@ export const MoodTrendChart: React.FC<MoodTrendChartProps> = ({
             <TouchableOpacity
               style={[
                 styles.toggleBtn,
-                period === '30d' && styles.toggleBtnActive,
+                period === '30d' && [styles.toggleBtnActive, { backgroundColor: colors.accent }],
               ]}
               onPress={() => setPeriod('30d')}
               activeOpacity={0.7}
@@ -177,8 +179,8 @@ export const MoodTrendChart: React.FC<MoodTrendChartProps> = ({
           <Svg width={chartWidth} height={chartHeight}>
             <Defs>
               <SvgGradient id="moodFillGradient" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0%" stopColor={Colors.primary} stopOpacity="0.32" />
-                <Stop offset="80%" stopColor={Colors.primaryLight} stopOpacity="0.08" />
+                <Stop offset="0%" stopColor={colors.accent} stopOpacity="0.32" />
+                <Stop offset="80%" stopColor={colors.accentSoft} stopOpacity="0.08" />
                 <Stop offset="100%" stopColor={Colors.white} stopOpacity="0.0" />
               </SvgGradient>
             </Defs>
@@ -222,7 +224,7 @@ export const MoodTrendChart: React.FC<MoodTrendChartProps> = ({
               <Path
                 d={pathD}
                 fill="none"
-                stroke={Colors.primary}
+                stroke={colors.accent}
                 strokeWidth={3}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -238,7 +240,7 @@ export const MoodTrendChart: React.FC<MoodTrendChartProps> = ({
                   cy={p.y}
                   r={5}
                   fill={Colors.white}
-                  stroke={Colors.primary}
+                  stroke={colors.accent}
                   strokeWidth={2.5}
                 />
 

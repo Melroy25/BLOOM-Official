@@ -46,10 +46,10 @@ export const QuickAccessSection: React.FC<QuickAccessSectionProps> = ({
           accessibilityLabel="Open Heal Bubble"
         >
           <View style={styles.topRow}>
-            <View style={[styles.iconCircle, { backgroundColor: '#E8F1E8' }]}>
-              <Wind size={20} color="#365B45" strokeWidth={2} />
+            <View style={[styles.iconCircle, { backgroundColor: colors.accentSoft }]}>
+              <Wind size={20} color={colors.accent} strokeWidth={2} />
             </View>
-            <ArrowRight size={14} color="#789B83" strokeWidth={2.2} />
+            <ArrowRight size={14} color={colors.accent} strokeWidth={2.2} />
           </View>
 
           <View style={styles.textWrap}>
