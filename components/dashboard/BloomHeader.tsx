@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Settings } from 'lucide-react-native';
 import { Spacing } from '../../constants/spacing';
@@ -59,10 +59,30 @@ export const BloomHeader: React.FC<BloomHeaderProps> = ({
 
   return (
     <View style={[styles.container, { paddingTop: topPadding }]}>
-      {/* Top Row: Wordmark & Settings Button */}
+      {/* Top Row: 3D Leaf Mascot + "Bloom" Brand Title + Subtitle & Settings Button */}
       <View style={styles.topRow}>
-        <View style={styles.logoWrap}>
-          <Text style={[styles.logoText, { color: colors.primaryDark }]}>BLOOM</Text>
+        <View style={styles.brandRow}>
+          {/* 3D Leaf Mascot Badge */}
+          <View
+            style={[
+              styles.mascotBadge,
+              Shadows.sm,
+              { backgroundColor: colors.white, borderColor: colors.border },
+            ]}
+          >
+            <Image
+              source={require('../../assets/images/bloom-mascot-hd.png')}
+              style={styles.mascotImg}
+              resizeMode="contain"
+            />
+          </View>
+
+          <View style={styles.brandTextWrap}>
+            <Text style={[styles.brandTitle, { color: colors.darkText }]}>Bloom</Text>
+            <Text style={[styles.brandSubtitle, { color: colors.mutedText }]}>
+              Your everyday companion for mental growth
+            </Text>
+          </View>
         </View>
 
         {onSettingsPress && (
@@ -87,7 +107,7 @@ export const BloomHeader: React.FC<BloomHeaderProps> = ({
         <Text style={[styles.greetingText, { color: colors.darkText }]}>
           {greeting}, {cleanName}
         </Text>
-        <Text style={[styles.subtitleText, { color: colors.mutedText }]}>
+        <Text style={[styles.motivationalText, { color: colors.mutedText }]}>
           {motivationalMessage}
         </Text>
       </View>
@@ -104,17 +124,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
-  logoWrap: {
+  brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    marginRight: 12,
+    gap: 10,
   },
-  logoText: {
+  mascotBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    overflow: 'hidden',
+  },
+  mascotImg: {
+    width: 34,
+    height: 34,
+  },
+  brandTextWrap: {
+    flex: 1,
+  },
+  brandTitle: {
     fontFamily: FontFamily.sansExtraBold,
     fontSize: 22,
     fontWeight: '800',
-    letterSpacing: 3,
+    letterSpacing: -0.3,
+  },
+  brandSubtitle: {
+    fontFamily: FontFamily.sansRegular,
+    fontSize: 11.5,
+    fontWeight: '500',
+    lineHeight: 16,
+    marginTop: 1,
   },
   settingsBtn: {
     width: 42,
@@ -125,18 +171,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   greetingWrap: {
-    gap: 4,
+    gap: 2,
+    marginTop: 4,
   },
   greetingText: {
     fontFamily: FontFamily.sansBold,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     letterSpacing: -0.4,
   },
-  subtitleText: {
+  motivationalText: {
     fontFamily: FontFamily.sansRegular,
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '400',
-    lineHeight: 20,
+    lineHeight: 19,
   },
 });

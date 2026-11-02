@@ -29,7 +29,7 @@ import {
   RotateCcw,
 } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
-import { Typography } from '../../constants/typography';
+import { Typography, FontFamily } from '../../constants/typography';
 import { Spacing, BorderRadius } from '../../constants/spacing';
 import { Shadows } from '../../constants/shadows';
 import { MoodTrendChart } from '../../components/heal-zone/MoodTrendChart';
@@ -127,7 +127,7 @@ export default function HealZoneScreen() {
   const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 16 : 20);
 
   const { user } = useAuth();
-  const { setCurrentMood } = useTheme();
+  const { colors, isDark, setCurrentMood } = useTheme();
 
   // Dynamic Mood State (null = State A: horizontal selector, string = State B: transformed card)
   const [selectedMood, setSelectedMood] = useState<MoodName | null>(null);
@@ -417,22 +417,44 @@ export default function HealZoneScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingTop: topPadding }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* SECTION 1 — TOP NAVIGATION BAR & HEADER */}
-        <View style={styles.topNavBar}>
-          <View style={styles.navLeft}>
-            <View style={[styles.bloomLogoCircle, Shadows.sm]}>
-              <BloomLogoMark />
-            </View>
-            <Text style={styles.bloomNavTitle}>Bloom</Text>
-          </View>
-        </View>
+        {/* SECTION 1 — TOP NAVIGATION BAR & HEADER (Back button, centered title + subtitle, right round lotus emblem) */}
+        <View style={styles.topHeaderBar}>
+          <TouchableOpacity
+            style={[
+              styles.headerBackBtn,
+              Shadows.sm,
+              { backgroundColor: colors.white, borderColor: colors.border },
+            ]}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(tabs)');
+              }
+            }}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <ChevronLeft size={22} color={colors.darkText} strokeWidth={2.4} />
+          </TouchableOpacity>
 
-        {/* SCREEN TITLE (Clean "Heal Zone" without pre-header text) */}
-        <View style={styles.titleSection}>
-          <Text style={styles.headerTitle}>Heal Zone</Text>
-          <Text style={styles.headerSubtitle}>
-            Your safe space for healing and self-care.
-          </Text>
+          <View style={styles.headerCenterWrap}>
+            <Text style={[styles.headerMainTitle, { color: colors.darkText }]}>Heal Zone</Text>
+            <Text style={[styles.headerSubtitleText, { color: colors.mutedText }]}>
+              Your safe space for healing and self-care
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.headerEmblemCircle,
+              Shadows.sm,
+              { backgroundColor: colors.white, borderColor: colors.border },
+            ]}
+          >
+            <BloomLogoMark />
+          </View>
         </View>
 
         {/* Confirmation Toast */}
@@ -829,49 +851,47 @@ const styles = StyleSheet.create({
   },
 
   // 1. Top Navigation Bar & Header
-  topNavBar: {
+  topHeaderBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.xs,
-    paddingBottom: Spacing.xs,
-  },
-  navLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  bloomLogoCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: Colors.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  bloomNavTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: Colors.darkText,
-    letterSpacing: 0.4,
-  },
-  titleSection: {
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.xs,
     paddingBottom: Spacing.md,
+    gap: 12,
   },
-  headerTitle: {
-    ...Typography.h1,
-    fontSize: 30,
-    color: Colors.darkText,
-    marginBottom: 4,
+  headerBackBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  headerSubtitle: {
-    ...Typography.body,
-    fontSize: 15,
-    color: Colors.mutedText,
+  headerCenterWrap: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerMainTitle: {
+    fontFamily: FontFamily.sansBold,
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  headerSubtitleText: {
+    fontFamily: FontFamily.sansRegular,
+    fontSize: 12,
+    fontWeight: '400',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  headerEmblemCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   toastContainer: {
     flexDirection: 'row',

@@ -9,15 +9,17 @@ import React, { memo } from 'react';
 import { View, StyleSheet, Dimensions, Platform } from 'react-native';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { useTheme } from '../../context/ThemeContext';
+import { FloatingParticles } from './FloatingParticles';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface BackgroundGlowProps {
   children?: React.ReactNode;
   style?: any;
+  showParticles?: boolean;
 }
 
-export const BackgroundGlow: React.FC<BackgroundGlowProps> = memo(({ children, style }) => {
+export const BackgroundGlow: React.FC<BackgroundGlowProps> = memo(({ children, style, showParticles = true }) => {
   const { colors, isDark } = useTheme();
 
   if (Platform.OS === 'web') {
@@ -34,6 +36,7 @@ export const BackgroundGlow: React.FC<BackgroundGlowProps> = memo(({ children, s
           style,
         ]}
       >
+        {showParticles && <FloatingParticles />}
         {children}
       </View>
     );
@@ -85,6 +88,9 @@ export const BackgroundGlow: React.FC<BackgroundGlowProps> = memo(({ children, s
           <Rect x="0" y="0" width="100%" height="100%" fill="url(#bottomLeftGlow)" />
         </Svg>
       </View>
+
+      {/* FLOATING PARTICLES LAYER */}
+      {showParticles && <FloatingParticles />}
 
       {/* CONTENT LAYER */}
       {children}
