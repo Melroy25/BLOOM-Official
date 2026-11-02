@@ -1,0 +1,64 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // 1. Community Reflection Photos (Global Posts)
+    // Permitted: jpeg, png, webp up to 5 MB
+    match /community_posts/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated()
+                            && request.auth.uid == userId
+                            && request.resource.size < 5 * 1024 * 1024
+                            && request.resource.contentType.matches('image/.*');
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 2. User Profile Avatars
+    match /avatars/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated()
+                            && request.auth.uid == userId
+                            && request.resource.size < 3 * 1024 * 1024
+                            && request.resource.contentType.matches('image/.*');
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 3. User Uploaded Music Therapy Audio Files (Max 15 MB)
+    match /user_music/{userId}/{fileName} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow create, update: if isAuthenticated()
+                            && request.auth.uid == userId
+                            && request.resource.size < 15 * 1024 * 1024
+                            && request.resource.contentType.matches('audio/.*');
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 4. Mindful Documents Media Attachments (Max 5 MB)
+    match /documents/{userId}/{fileName} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow create, update: if isAuthenticated()
+                            && request.auth.uid == userId
+                            && request.resource.size < 5 * 1024 * 1024;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 5. User Wellness Report PDFs (Max 10 MB)
+    match /wellness_reports/{userId}/{fileName} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow create, update: if isAuthenticated()
+                            && request.auth.uid == userId
+                            && request.resource.size < 10 * 1024 * 1024
+                            && request.resource.contentType.matches('application/pdf');
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 6. Fallback: Block all unauthorized access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

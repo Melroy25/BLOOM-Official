@@ -35,6 +35,7 @@ import {
   ShieldCheck,
 } from 'lucide-react-native';
 import { Colors } from '../../../constants/colors';
+import { FontFamily } from '../../../constants/typography';
 import { Spacing, BorderRadius } from '../../../constants/spacing';
 import { Shadows } from '../../../constants/shadows';
 import {
@@ -1406,6 +1407,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   ringBigTime: {
+    fontFamily: FontFamily.monoBold,
     fontSize: 32,
     fontWeight: '800',
     color: '#29332E',

@@ -220,7 +220,7 @@ export default function StudentTasksView({ initialTab = 'daily', onBack }: Props
               ? `${dailyPercent}%`
               : activeSubTab === 'weekly'
               ? `${weeklyPercent}%`
-              : `${Math.round((habits.filter((h) => h.completedToday).length / habits.length) * 100)}%`}
+              : `${habits.length > 0 ? habits.length > 0 ? Math.round((habits.filter((h) => h.completedToday).length / habits.length) * 100) : 0 : 0}%`}
           </Text>
         </View>
 
@@ -296,7 +296,18 @@ export default function StudentTasksView({ initialTab = 'daily', onBack }: Props
         <ActivityIndicator size="large" color={Colors.primary} style={{ marginVertical: Spacing.xl }} />
       ) : activeSubTab !== 'habits' ? (
         <View style={styles.taskList}>
-          {(activeSubTab === 'daily' ? dailyTasks : weeklyTasks).map((task) => (
+          {(activeSubTab === 'daily' ? dailyTasks : weeklyTasks).length === 0 ? (
+            <View style={[styles.emptyContainer, Shadows.sm]}>
+              <ListChecks size={28} color={Colors.primary} strokeWidth={1.8} />
+              <Text style={styles.emptyTitle}>
+                {activeSubTab === 'daily' ? 'No daily study tasks yet' : 'No weekly goals yet'}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                Type a task in the box above or tap + to start organizing your study schedule.
+              </Text>
+            </View>
+          ) : (
+            (activeSubTab === 'daily' ? dailyTasks : weeklyTasks).map((task) => (
             <View key={task.id} style={[styles.taskCard, Shadows.sm]}>
               <TouchableOpacity
                 style={styles.taskLeftCol}
@@ -369,7 +380,7 @@ export default function StudentTasksView({ initialTab = 'daily', onBack }: Props
                 <Trash2 size={15} color={Colors.mutedText} />
               </TouchableOpacity>
             </View>
-          ))}
+          )))}
         </View>
       ) : (
         /* Habits & Goals Section */
@@ -924,5 +935,28 @@ const styles = StyleSheet.create({
   },
   submitBtnText: {
     ...Typography.button,
+  },
+  emptyContainer: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginVertical: Spacing.md,
+    gap: 6,
+  },
+  emptyTitle: {
+    ...Typography.h3,
+    fontSize: 16,
+    color: Colors.darkText,
+    marginTop: 4,
+  },
+  emptySubtitle: {
+    ...Typography.caption,
+    fontSize: 12,
+    color: Colors.mutedText,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

@@ -29,9 +29,11 @@ import {
 } from 'lucide-react-native';
 import { Spacing, BorderRadius } from '../constants/spacing';
 import { Shadows } from '../constants/shadows';
-import { useTheme, ThemeMode } from '../context/ThemeContext';
+import { useTheme, ThemeMode, AccentPalette } from '../context/ThemeContext';
+import { ACCENT_PALETTES } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 import { MoodType } from '../types';
+import { BackgroundGlow } from '../components/theme/BackgroundGlow';
 
 const PRESET_TIMES = ['08:00 AM', '12:30 PM', '06:00 PM', '08:30 PM', '09:30 PM'];
 
@@ -43,6 +45,7 @@ export default function SettingsScreen() {
 
   const {
     themeMode,
+    accentPalette,
     adaptToMood,
     currentMood,
     dailyMoodReminderEnabled,
@@ -54,6 +57,7 @@ export default function SettingsScreen() {
     colors,
     isDark,
     setThemeMode,
+    setAccentPalette,
     setAdaptToMood,
     setDailyMoodReminderEnabled,
     setDailyMoodReminderTime,
@@ -99,8 +103,16 @@ export default function SettingsScreen() {
     setTimePickerTarget(null);
   };
 
+  const handleGoBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
+
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+    <BackgroundGlow style={styles.screen}>
       {/* Top Header */}
       <View style={[styles.headerRow, { paddingTop: topPadding + 4 }]}>
         <TouchableOpacity
@@ -109,7 +121,7 @@ export default function SettingsScreen() {
             Shadows.sm,
             { backgroundColor: colors.white, borderColor: colors.border },
           ]}
-          onPress={() => router.back()}
+          onPress={handleGoBack}
           accessibilityRole="button"
           accessibilityLabel="Back to Dashboard"
           activeOpacity={0.7}
@@ -211,6 +223,65 @@ export default function SettingsScreen() {
                   System
                 </Text>
               </TouchableOpacity>
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            {/* Accent Palette Selector */}
+            <View style={{ marginTop: 14, marginBottom: 8 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <Text style={[styles.itemTitle, { color: colors.darkText }]}>Accent Palette</Text>
+                {adaptToMood && (
+                  <View style={[styles.adaptiveBadge, { backgroundColor: colors.accentSoft }]}>
+                    <Sparkles size={11} color={colors.accent} />
+                    <Text style={[styles.adaptiveBadgeText, { color: colors.accentText }]}>
+                      Mood-Linked
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text style={[styles.itemSubtitle, { color: colors.mutedText, marginBottom: 10 }]}>
+                Choose your signature ambient highlight color across all screens.
+              </Text>
+
+              <View style={styles.paletteRow}>
+                {(['yellow', 'mint', 'pink', 'blue'] as AccentPalette[]).map((paletteKey) => {
+                  const pal = ACCENT_PALETTES[paletteKey];
+                  const isSelected = accentPalette === paletteKey;
+                  return (
+                    <TouchableOpacity
+                      key={paletteKey}
+                      style={[
+                        styles.paletteCard,
+                        {
+                          backgroundColor: isSelected ? colors.frostedBg : (isDark ? '#1C241E' : '#FFFFFF'),
+                          borderColor: isSelected ? pal.main : colors.border,
+                          borderWidth: isSelected ? 2 : 1,
+                        },
+                      ]}
+                      onPress={async () => {
+                        await setAccentPalette(paletteKey);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.paletteDot, { backgroundColor: pal.main }]}>
+                        {isSelected && <Check size={12} color="#FFFFFF" strokeWidth={3} />}
+                      </View>
+                      <Text
+                        style={[
+                          styles.paletteLabel,
+                          {
+                            color: isSelected ? colors.darkText : colors.mutedText,
+                            fontWeight: isSelected ? '700' : '500',
+                          },
+                        ]}
+                      >
+                        {pal.name.charAt(0).toUpperCase() + pal.name.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
 
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -530,7 +601,7 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </BackgroundGlow>
   );
 }
 
@@ -781,5 +852,41 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  paletteRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  paletteCard: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  paletteDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paletteLabel: {
+    fontSize: 11.5,
+  },
+  adaptiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  adaptiveBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
   },
 });

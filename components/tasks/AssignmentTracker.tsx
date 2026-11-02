@@ -319,6 +319,16 @@ export default function AssignmentTracker({ onBack }: Props) {
       {/* Assignment Cards List */}
       {loading ? (
         <ActivityIndicator size="large" color={Colors.primary} style={{ marginVertical: Spacing.xl }} />
+      ) : filteredAssignments.length === 0 ? (
+        <View style={[styles.emptyContainer, Shadows.sm]}>
+          <ClipboardList size={32} color={Colors.primary} strokeWidth={1.8} />
+          <Text style={styles.emptyTitle}>No assignments found</Text>
+          <Text style={styles.emptySubtitle}>
+            {filter !== 'all'
+              ? 'No coursework matches this filter.'
+              : 'Type an assignment title above or tap + to track your deadlines.'}
+          </Text>
+        </View>
       ) : (
         <View style={styles.list}>
           {filteredAssignments.map((item) => {
@@ -1007,5 +1017,28 @@ const styles = StyleSheet.create({
   },
   modalSubmitText: {
     ...Typography.button,
+  },
+  emptyContainer: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginVertical: Spacing.md,
+    gap: 6,
+  },
+  emptyTitle: {
+    ...Typography.h3,
+    fontSize: 16,
+    color: Colors.darkText,
+    marginTop: 4,
+  },
+  emptySubtitle: {
+    ...Typography.caption,
+    fontSize: 12,
+    color: Colors.mutedText,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

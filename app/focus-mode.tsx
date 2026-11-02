@@ -85,6 +85,14 @@ export default function FocusModeScreen() {
     ]);
   };
 
+  const handleGoBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
+
   const minutesDisplay = String(Math.floor(secondsRemaining / 60)).padStart(2, '0');
   const secondsDisplay = String(secondsRemaining % 60).padStart(2, '0');
   const progressRatio = 1 - secondsRemaining / (selectedMinutes * 60);
@@ -99,7 +107,7 @@ export default function FocusModeScreen() {
             Shadows.sm,
             { backgroundColor: colors.white, borderColor: colors.border },
           ]}
-          onPress={() => router.back()}
+          onPress={handleGoBack}
           activeOpacity={0.7}
         >
           <ArrowLeft size={20} color={colors.darkText} strokeWidth={2.2} />

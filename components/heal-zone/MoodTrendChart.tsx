@@ -31,6 +31,20 @@ export const MoodTrendChart: React.FC<MoodTrendChartProps> = ({
   const [period, setPeriod] = useState<'7d' | '30d'>('7d');
   const data = period === '7d' ? sevenDayData : thirtyDayData;
 
+  const validScores = data.filter((d) => typeof d.score === 'number' && d.score > 0);
+  const avgScore =
+    validScores.length > 0
+      ? validScores.reduce((sum, d) => sum + d.score, 0) / validScores.length
+      : 0;
+
+  let summaryText = 'No check-ins yet';
+  if (validScores.length > 0) {
+    if (avgScore >= 3.5) summaryText = 'Mostly Great & Uplifted';
+    else if (avgScore >= 2.8) summaryText = 'Mostly Calm & Balanced';
+    else if (avgScore >= 2.0) summaryText = 'Mostly Neutral & Steady';
+    else summaryText = 'Gentle Care & Rest Needed';
+  }
+
   const chartWidth = SCREEN_WIDTH - Spacing.xl * 2;
   const chartHeight = 200;
   const padLeft = 45;
@@ -107,7 +121,7 @@ export const MoodTrendChart: React.FC<MoodTrendChartProps> = ({
               <TrendingUp size={14} color={Colors.primary} strokeWidth={2.2} />
               <Text style={styles.trendBadgeText}>EMOTIONAL FLOW</Text>
             </View>
-            <Text style={styles.avgText}>Mostly Calm & Positive</Text>
+            <Text style={styles.avgText}>{summaryText}</Text>
           </View>
 
           {/* Period Toggle */}
@@ -152,6 +166,14 @@ export const MoodTrendChart: React.FC<MoodTrendChartProps> = ({
 
         {/* SVG Chart */}
         <View style={styles.chartWrapper}>
+          {points.length === 0 && (
+            <View style={styles.emptyOverlay}>
+              <Text style={styles.emptyChartTitle}>No mood check-ins yet</Text>
+              <Text style={styles.emptyChartSub}>
+                Tap a mood above to begin mapping your emotional trend.
+              </Text>
+            </View>
+          )}
           <Svg width={chartWidth} height={chartHeight}>
             <Defs>
               <SvgGradient id="moodFillGradient" x1="0" y1="0" x2="0" y2="1">
@@ -333,5 +355,31 @@ const styles = StyleSheet.create({
     color: Colors.lightText,
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  emptyOverlay: {
+    position: 'absolute',
+    top: 50,
+    left: 45,
+    right: 20,
+    bottom: 35,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    zIndex: 10,
+  },
+  emptyChartTitle: {
+    ...Typography.bodySmall,
+    fontWeight: '700',
+    color: Colors.darkText,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  emptyChartSub: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: Colors.mutedText,
+    textAlign: 'center',
   },
 });

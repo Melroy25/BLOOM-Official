@@ -121,6 +121,8 @@ export interface UserProfile {
   bio?: string;
   statusBadge?: string;
   avatarSeed?: string;
+  languagePreference?: LanguagePreference;
+  voicePreference?: VoicePreference;
 }
 
 export interface OnboardingResponses {
@@ -328,4 +330,212 @@ export interface NotificationDocument {
   createdAt: any;
 }
 
+// ==========================================
+// Phase 1 Additional Production Document Models
+// ==========================================
 
+export interface AssignmentDocument {
+  id?: string;
+  userId: string;
+  title: string;
+  course: string;
+  courseColor: string;
+  dueDate: string; // YYYY-MM-DD
+  dueTime: string; // HH:mm
+  priority: 'high' | 'medium' | 'low';
+  status: 'pending' | 'submitted' | 'graded';
+  source: 'google_classroom' | 'manual';
+  points?: number;
+  description?: string;
+  classroomLink?: string;
+  reminderActive: boolean;
+  aiStudyPlan?: {
+    summary: string;
+    estimatedTotalMinutes: number;
+    recommendedBreakdown: { title: string; duration: string; done: boolean }[];
+  };
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface MindfulDocument {
+  id?: string;
+  userId: string;
+  title: string;
+  content: string;
+  wordCount: number;
+  tags: string[];
+  category: 'all' | 'pinned' | 'recent' | 'study';
+  isPinned: boolean;
+  callout?: string;
+  checklist?: { id: string; text: string; done: boolean }[];
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface BurstedThoughtDocument {
+  id?: string;
+  userId: string;
+  thought: string;
+  feelingId: string;
+  feelingLabel: string;
+  feelingEmoji: string;
+  customNote?: string;
+  sessionDurationSeconds: number;
+  createdAt: any;
+}
+
+export interface SleepLogDocument {
+  id?: string;
+  userId: string;
+  date: string; // YYYY-MM-DD
+  bedtime: string; // HH:mm
+  wakeTime: string; // HH:mm
+  sleepDurationHours: number;
+  qualityRating: number; // 1-5
+  source: 'manual' | 'health_connect';
+  createdAt: any;
+}
+
+export interface StressLogDocument {
+  id?: string;
+  userId: string;
+  assessmentType: 'pss-10';
+  answers: number[];
+  calculatedScore: number;
+  stressCategory: 'low' | 'moderate' | 'high';
+  notes?: string;
+  createdAt: any;
+}
+
+export interface EmergencyContactDocument {
+  id?: string;
+  userId: string;
+  name: string;
+  relation: string;
+  phone: string;
+  isPrimary: boolean;
+  createdAt: any;
+}
+
+export interface UserPlaylistDocument {
+  id?: string;
+  userId: string;
+  name: string;
+  theme: string;
+  iconEmoji: string;
+  accentColor: string;
+  songCount: number;
+  createdAt: any;
+}
+
+
+// ============================================================================
+// 10. AI COMPANION 2.0 & MULTI-LINGUAL VOICE MODELS
+// ============================================================================
+
+export type SupportedLanguageCode = 'en' | 'kn' | 'hi' | 'ml' | 'ta' | 'te';
+
+export interface LanguagePreference {
+  code: SupportedLanguageCode;
+  name: string;
+  nativeName: string;
+  locale: string;
+}
+
+export interface VoicePreference {
+  enabled: boolean;
+  voiceIdentifier?: string;
+  voiceName?: string;
+  rate: number; // 0.75 - 1.25, default 0.95
+  pitch: number; // 0.8 - 1.2, default 1.08
+}
+
+export interface SupportedLanguage {
+  code: SupportedLanguageCode;
+  name: string;
+  nativeName: string;
+  locale: string;
+  isVoiceSupported: boolean;
+  availableVoicesCount: number;
+}
+
+export interface SpeechVoiceOption {
+  identifier: string;
+  name: string;
+  language: string;
+  quality?: string;
+}
+
+// ============================================================================
+// 11. INTELLIGENT WELLNESS REPORT MODELS
+// ============================================================================
+
+export interface ReportMetrics {
+  totalTasks: number;
+  completedTasks: number;
+  taskCompletionRate: number; // 0 - 100
+  totalAssignments: number;
+  completedAssignments: number;
+  habitsCount: number;
+  activeHabitsCount?: number;
+  habitConsistencyRate: number; // 0 - 100
+  totalScreenTimeMinutes: number;
+  avgDailyScreenTimeMinutes: number;
+  focusSessionMinutes: number;
+  totalFocusMinutes?: number;
+  focusSessionsCount: number;
+  completedFocusSessionsCount?: number;
+  moodCheckInsCount: number;
+  moodDistribution: {
+    calm: number;
+    happy: number;
+    stressed: number;
+    tired: number;
+  };
+  sleepRecordedDays: number;
+  avgSleepHours?: number;
+  avgSleepEfficiency?: number;
+  sleepDataAvailable?: boolean;
+  stressAssessmentsCount: number;
+  latestStressScore?: number;
+  latestStressCategory?: string;
+  aiConversationsCount: number;
+  wellnessScore: number; // 0 - 100
+}
+
+export interface PeriodComparison {
+  taskRateDelta: number;
+  taskCompletionDelta?: number;
+  screenTimeDeltaMinutes: number;
+  screenTimeMinutesDelta?: number;
+  wellnessScoreDelta: number;
+}
+
+export interface WellnessReportDocument {
+  id?: string;
+  userId: string;
+  reportType: 'weekly' | 'instant' | 'custom';
+  reportingPeriod: {
+    startDate: string; // YYYY-MM-DD
+    endDate: string; // YYYY-MM-DD
+    label: string; // e.g. "Oct 26 - Nov 01, 2026"
+  };
+  executiveSummary?: string;
+  metrics: ReportMetrics;
+  previousPeriodComparison?: PeriodComparison;
+  aiObservations: string[];
+  recommendations: string[];
+  dataAvailabilityNotes: string[];
+  pdfUrl?: string; // Firebase storage download URL
+  pdfStoragePath?: string;
+  generatedAt: any;
+  userTimezone?: string;
+}
+
+export interface ReportGenerationOptions {
+  periodType: 'last7Days' | 'last30Days' | 'allHistory' | 'custom';
+  customStartDate?: string;
+  customEndDate?: string;
+  userProfile?: UserProfile | null;
+}

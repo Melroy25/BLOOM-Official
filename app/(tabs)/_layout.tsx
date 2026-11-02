@@ -3,39 +3,40 @@ import { Tabs } from 'expo-router';
 import { View, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, Heart, Sparkles, CheckSquare, Users } from 'lucide-react-native';
-import { Colors } from '../../constants/colors';
-import { Typography } from '../../constants/typography';
-import { Spacing } from '../../constants/spacing';
-import { Shadows } from '../../constants/shadows';
+import { FontFamily } from '../../constants/typography';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 10 : 16);
+  const { colors, isDark } = useTheme();
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primaryDark,
-        tabBarInactiveTintColor: Colors.mutedText,
+        sceneStyle: { backgroundColor: colors.canvas },
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.mutedText,
         tabBarShowLabel: true,
         tabBarLabelStyle: {
+          fontFamily: FontFamily.sansSemiBold,
           fontSize: 11,
           fontWeight: '600',
           marginTop: -2,
           marginBottom: 4,
         },
         tabBarStyle: {
-          backgroundColor: Colors.white,
+          backgroundColor: isDark ? 'rgba(22, 22, 26, 0.94)' : 'rgba(255, 255, 255, 0.94)',
           borderTopWidth: 1,
-          borderTopColor: Colors.border,
+          borderTopColor: colors.border,
           height: 64 + bottomPadding,
           paddingTop: 8,
           paddingBottom: bottomPadding,
           elevation: 12,
-          shadowColor: Colors.shadow,
+          shadowColor: colors.shadow,
           shadowOffset: { width: 0, height: -3 },
-          shadowOpacity: 0.08,
+          shadowOpacity: isDark ? 0.25 : 0.08,
           shadowRadius: 10,
         },
       }}
@@ -45,8 +46,8 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconWrapper, focused && styles.activeIconWrapper]}>
-              <Home size={22} color={color} strokeWidth={focused ? 2.4 : 1.8} />
+            <View style={[styles.iconWrapper, focused && { backgroundColor: colors.accentSoft }]}>
+              <Home size={21} color={color} strokeWidth={focused ? 2.4 : 1.8} />
             </View>
           ),
         }}
@@ -56,8 +57,8 @@ export default function TabLayout() {
         options={{
           title: 'Heal Zone',
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconWrapper, focused && styles.activeIconWrapper]}>
-              <Heart size={22} color={color} strokeWidth={focused ? 2.4 : 1.8} />
+            <View style={[styles.iconWrapper, focused && { backgroundColor: colors.accentSoft }]}>
+              <Heart size={21} color={color} strokeWidth={focused ? 2.4 : 1.8} />
             </View>
           ),
         }}
@@ -67,8 +68,8 @@ export default function TabLayout() {
         options={{
           title: 'AI Companion',
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconWrapper, focused && styles.activeIconWrapper]}>
-              <Sparkles size={22} color={color} strokeWidth={focused ? 2.4 : 1.8} />
+            <View style={[styles.iconWrapper, focused && { backgroundColor: colors.accentSoft }]}>
+              <Sparkles size={21} color={color} strokeWidth={focused ? 2.4 : 1.8} />
             </View>
           ),
         }}
@@ -78,8 +79,8 @@ export default function TabLayout() {
         options={{
           title: 'Tasks',
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconWrapper, focused && styles.activeIconWrapper]}>
-              <CheckSquare size={22} color={color} strokeWidth={focused ? 2.4 : 1.8} />
+            <View style={[styles.iconWrapper, focused && { backgroundColor: colors.accentSoft }]}>
+              <CheckSquare size={21} color={color} strokeWidth={focused ? 2.4 : 1.8} />
             </View>
           ),
         }}
@@ -89,8 +90,8 @@ export default function TabLayout() {
         options={{
           title: 'Bloom Circle',
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconWrapper, focused && styles.activeIconWrapper]}>
-              <Users size={22} color={color} strokeWidth={focused ? 2.4 : 1.8} />
+            <View style={[styles.iconWrapper, focused && { backgroundColor: colors.accentSoft }]}>
+              <Users size={21} color={color} strokeWidth={focused ? 2.4 : 1.8} />
             </View>
           ),
         }}
@@ -106,8 +107,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 15,
-  },
-  activeIconWrapper: {
-    backgroundColor: Colors.lightSage,
   },
 });

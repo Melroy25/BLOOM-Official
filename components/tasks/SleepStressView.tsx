@@ -28,7 +28,7 @@ import {
   Plus,
 } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
-import { Typography } from '../../constants/typography';
+import { Typography, FontFamily } from '../../constants/typography';
 import { Spacing, BorderRadius } from '../../constants/spacing';
 import { Shadows } from '../../constants/shadows';
 import { SleepState, StressState } from '../../types/tasks';
@@ -212,31 +212,42 @@ export default function SleepStressView({ initialTab = 'sleep', onBack }: Props)
               </View>
             </View>
 
-            {/* Architecture Bars */}
-            <Text style={styles.archTitle}>
-              Sleep Architecture ({Math.floor(sleepState.actualSleepHours)}h{' '}
-              {Math.round((sleepState.actualSleepHours % 1) * 60)}m)
-            </Text>
-            <View style={styles.archBar}>
-              <View style={[styles.archSegment, { width: '22%', backgroundColor: '#7A68A7' }]} />
-              <View style={[styles.archSegment, { width: '20%', backgroundColor: '#365B45' }]} />
-              <View style={[styles.archSegment, { width: '58%', backgroundColor: '#A8C5B2' }]} />
-            </View>
+            {/* Architecture Bars / Honest Log Display */}
+            {sleepState.actualSleepHours === 0 ? (
+              <View style={styles.emptySleepBox}>
+                <Text style={styles.emptySleepText}>No sleep recorded for last night yet</Text>
+                <Text style={styles.emptySleepSub}>
+                  Log your bedtime, wake time, and sleep quality to calculate your restorative score.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.archTitle}>
+                  Sleep Logged ({Math.floor(sleepState.actualSleepHours)}h{' '}
+                  {Math.round((sleepState.actualSleepHours % 1) * 60)}m)
+                </Text>
+                <View style={styles.archBar}>
+                  <View style={[styles.archSegment, { width: '22%', backgroundColor: '#7A68A7' }]} />
+                  <View style={[styles.archSegment, { width: '20%', backgroundColor: '#365B45' }]} />
+                  <View style={[styles.archSegment, { width: '58%', backgroundColor: '#A8C5B2' }]} />
+                </View>
 
-            <View style={styles.legendRow}>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#7A68A7' }]} />
-                <Text style={styles.legendText}>REM ({sleepState.remMinutes}m)</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#365B45' }]} />
-                <Text style={styles.legendText}>Deep ({sleepState.deepMinutes}m)</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#A8C5B2' }]} />
-                <Text style={styles.legendText}>Light ({sleepState.lightMinutes}m)</Text>
-              </View>
-            </View>
+                <View style={styles.legendRow}>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: '#7A68A7' }]} />
+                    <Text style={styles.legendText}>REM ({sleepState.remMinutes}m)</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: '#365B45' }]} />
+                    <Text style={styles.legendText}>Deep ({sleepState.deepMinutes}m)</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: '#A8C5B2' }]} />
+                    <Text style={styles.legendText}>Light ({sleepState.lightMinutes}m)</Text>
+                  </View>
+                </View>
+              </>
+            )}
 
             <TouchableOpacity
               style={styles.logSleepBtn}
@@ -314,18 +325,24 @@ export default function SleepStressView({ initialTab = 'sleep', onBack }: Props)
 
             <View style={styles.stressMetricsRow}>
               <View style={styles.stressMetric}>
-                <Text style={styles.metricVal}>{stressState.estimatedHrvMs} ms</Text>
-                <Text style={styles.metricLabel}>RMSSD HRV</Text>
+                <Text style={styles.metricVal}>
+                  {stressState.score > 0 ? `${stressState.score}/100` : '—'}
+                </Text>
+                <Text style={styles.metricLabel}>PSS-10 Score</Text>
               </View>
               <View style={styles.metricDivider} />
               <View style={styles.stressMetric}>
-                <Text style={styles.metricVal}>68 bpm</Text>
-                <Text style={styles.metricLabel}>Resting Pulse</Text>
+                <Text style={styles.metricVal}>
+                  {stressState.score > 0 ? stressState.level.split(' ')[0] : 'Calm'}
+                </Text>
+                <Text style={styles.metricLabel}>Stress Level</Text>
               </View>
               <View style={styles.metricDivider} />
               <View style={styles.stressMetric}>
-                <Text style={styles.metricVal}>Vagal Active</Text>
-                <Text style={styles.metricLabel}>Nervous State</Text>
+                <Text style={styles.metricVal}>
+                  {stressState.score > 0 ? 'Assessed' : 'Pending'}
+                </Text>
+                <Text style={styles.metricLabel}>Status</Text>
               </View>
             </View>
 
@@ -607,11 +624,13 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.round,
   },
   scoreNumber: {
+    fontFamily: FontFamily.monoBold,
     fontSize: 20,
     fontWeight: '800',
     color: Colors.primaryDark,
   },
   scoreLabel: {
+    fontFamily: FontFamily.monoRegular,
     fontSize: 11,
     color: Colors.mutedText,
   },
@@ -951,5 +970,24 @@ const styles = StyleSheet.create({
   },
   submitModalBtnText: {
     ...Typography.button,
+  },
+  emptySleepBox: {
+    backgroundColor: Colors.cream,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginVertical: Spacing.sm,
+    alignItems: 'center',
+    gap: 4,
+  },
+  emptySleepText: {
+    ...Typography.bodySmall,
+    fontWeight: '700',
+    color: Colors.darkText,
+  },
+  emptySleepSub: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: Colors.mutedText,
+    textAlign: 'center',
   },
 });

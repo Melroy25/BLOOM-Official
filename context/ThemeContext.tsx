@@ -2,11 +2,18 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useMe
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '../services/firebase';
-import { auth } from '../services/firebase';
+import { db, auth } from '../services/firebase';
 import { MoodType } from '../types';
+import {
+  AccentPalette,
+  ACCENT_PALETTES,
+  CanvasColors,
+  FrostedTokens,
+  resolveActiveAccent,
+} from '../constants/theme';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
+export type { AccentPalette };
 
 export interface ThemeColors {
   primary: string;
@@ -24,6 +31,7 @@ export interface ThemeColors {
   lightText: string;
   cardBg: string;
   background: string;
+  canvas: string;
   border: string;
   shadow: string;
   success: string;
@@ -31,16 +39,26 @@ export interface ThemeColors {
   error: string;
   isDark: boolean;
   accentMoodColor?: string;
+
+  // Dynamic Ambient Accent Tokens
+  accent: string;
+  accentSoft: string;
+  accentText: string;
+  glowTop: string;
+  glowBottom: string;
+  frostedBg: string;
+  frostedBorder: string;
 }
 
 export interface SettingsState {
   themeMode: ThemeMode;
+  accentPalette: AccentPalette;
   adaptToMood: boolean;
   currentMood: MoodType | null;
   dailyMoodReminderEnabled: boolean;
-  dailyMoodReminderTime: string; // e.g. "20:30"
+  dailyMoodReminderTime: string;
   taskRemindersEnabled: boolean;
-  taskReminderTime: string;     // e.g. "09:00"
+  taskReminderTime: string;
   hideNotificationContent: boolean;
   reportNotificationsEnabled: boolean;
 }
@@ -49,6 +67,7 @@ interface ThemeContextType extends SettingsState {
   colors: ThemeColors;
   isDark: boolean;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
+  setAccentPalette: (palette: AccentPalette) => Promise<void>;
   setAdaptToMood: (enabled: boolean) => Promise<void>;
   setCurrentMood: (mood: MoodType) => void;
   setDailyMoodReminderEnabled: (enabled: boolean) => Promise<void>;
@@ -61,6 +80,7 @@ interface ThemeContextType extends SettingsState {
 
 const STORAGE_KEYS = {
   THEME_MODE: '@bloom_theme_mode',
+  ACCENT_PALETTE: '@bloom_accent_palette',
   ADAPT_MOOD: '@bloom_adapt_mood',
   LAST_MOOD: '@bloom_last_mood',
   MOOD_REMINDER_ENABLED: '@bloom_mood_reminder_enabled',
@@ -72,93 +92,53 @@ const STORAGE_KEYS = {
 };
 
 // Base Light Palette
-const baseLightColors: ThemeColors = {
-  primary: '#789B83',
-  primaryDark: '#365B45',
+const baseLightColors = {
+  primaryDark: '#204731',
   primaryLight: '#A8C5B2',
   lightSage: '#E8F1E8',
   mint: '#D9EEE5',
-  cream: '#FAF8F2',
+  cream: '#FAF8F3',
   white: '#FFFFFF',
   peach: '#F7E5DA',
   lavender: '#EAE5F4',
   softBlue: '#E2EDF3',
-  darkText: '#29332E',
-  mutedText: '#7B857F',
-  lightText: '#A5AEA8',
+  darkText: '#1A2E20',
+  mutedText: '#617364',
+  lightText: '#8FA193',
   cardBg: '#FFFFFF',
-  background: '#FAF8F2',
-  border: '#E8ECE9',
-  shadow: '#29332E',
-  success: '#6AAF7D',
-  warning: '#E8B86D',
-  error: '#D98B8B',
+  background: '#FAF8F3',
+  canvas: CanvasColors.light,
+  border: '#E2EBE0',
+  shadow: '#1A2E20',
+  success: '#10B981',
+  warning: '#F59E0B',
+  error: '#EF4444',
   isDark: false,
 };
 
 // Base Dark Palette
-const baseDarkColors: ThemeColors = {
-  primary: '#8EB89B',
-  primaryDark: '#4E785F',
-  primaryLight: '#B5D1BE',
-  lightSage: '#233128',
-  mint: '#1E3228',
-  cream: '#1C2420',
-  white: '#222D27',
+const baseDarkColors = {
+  primaryDark: '#34D399',
+  primaryLight: '#059669',
+  lightSage: '#1C2920',
+  mint: '#162E22',
+  cream: '#16161A',
+  white: '#222B24',
   peach: '#3B2E28',
   lavender: '#2E2838',
-  softBlue: '#253038',
-  darkText: '#F2F5F3',
-  mutedText: '#9BA8A0',
-  lightText: '#6F7B74',
-  cardBg: '#202923',
-  background: '#141B17',
-  border: '#28352D',
+  softBlue: '#1F2A38',
+  darkText: '#F3F6F4',
+  mutedText: '#9AAFA0',
+  lightText: '#6B8071',
+  cardBg: '#1C241E',
+  background: '#16161A',
+  canvas: CanvasColors.dark,
+  border: '#2A382E',
   shadow: '#000000',
-  success: '#7EC291',
-  warning: '#EFC07B',
-  error: '#E59898',
+  success: '#34D399',
+  warning: '#FBBF24',
+  error: '#F87171',
   isDark: true,
-};
-
-// Mood Palette Overlays (Subtle, accessible variations)
-const moodOverlays: Record<string, { lightBg: string; darkBg: string; lightPrimary: string; darkPrimary: string }> = {
-  Calm: {
-    lightBg: '#FAF8F2',
-    darkBg: '#141B17',
-    lightPrimary: '#789B83',
-    darkPrimary: '#8EB89B',
-  },
-  Happy: {
-    lightBg: '#FAF6F2',
-    darkBg: '#1C1814',
-    lightPrimary: '#8A9977',
-    darkPrimary: '#A2B38E',
-  },
-  Sad: {
-    lightBg: '#F3F6F9',
-    darkBg: '#14181C',
-    lightPrimary: '#6E8A9A',
-    darkPrimary: '#8FAAB8',
-  },
-  Stressed: {
-    lightBg: '#F6F3F9',
-    darkBg: '#18141C',
-    lightPrimary: '#847998',
-    darkPrimary: '#A095B5',
-  },
-  Anxious: {
-    lightBg: '#F2F8F5',
-    darkBg: '#141C18',
-    lightPrimary: '#689B86',
-    darkPrimary: '#84B8A3',
-  },
-  Tired: {
-    lightBg: '#F7F6F3',
-    darkBg: '#181715',
-    lightPrimary: '#84877F',
-    darkPrimary: '#A1A49C',
-  },
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -167,7 +147,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const systemScheme = useColorScheme();
 
   const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
-  const [adaptToMood, setAdaptToMoodState] = useState<boolean>(false);
+  const [accentPalette, setAccentPaletteState] = useState<AccentPalette>('mint');
+  const [adaptToMood, setAdaptToMoodState] = useState<boolean>(true);
   const [currentMood, setCurrentMoodState] = useState<MoodType | null>(null);
 
   // Reminders & Privacy
@@ -178,13 +159,18 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [hideNotificationContent, setHideNotificationContentState] = useState<boolean>(false);
   const [reportNotificationsEnabled, setReportNotificationsEnabledState] = useState<boolean>(true);
 
-  // Load preferences from AsyncStorage on startup
+  // Load preferences from AsyncStorage & Firestore on startup
   useEffect(() => {
     async function loadStoredPreferences() {
       try {
         const storedTheme = await AsyncStorage.getItem(STORAGE_KEYS.THEME_MODE);
         if (storedTheme === 'light' || storedTheme === 'dark' || storedTheme === 'system') {
           setThemeModeState(storedTheme);
+        }
+
+        const storedAccent = await AsyncStorage.getItem(STORAGE_KEYS.ACCENT_PALETTE);
+        if (storedAccent === 'yellow' || storedAccent === 'mint' || storedAccent === 'pink' || storedAccent === 'blue') {
+          setAccentPaletteState(storedAccent);
         }
 
         const storedAdapt = await AsyncStorage.getItem(STORAGE_KEYS.ADAPT_MOOD);
@@ -252,6 +238,12 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     syncToFirestore({ theme: mode });
   };
 
+  const setAccentPalette = async (palette: AccentPalette) => {
+    setAccentPaletteState(palette);
+    await AsyncStorage.setItem(STORAGE_KEYS.ACCENT_PALETTE, palette);
+    syncToFirestore({ accentPalette: palette });
+  };
+
   const setAdaptToMood = async (enabled: boolean) => {
     setAdaptToMoodState(enabled);
     await AsyncStorage.setItem(STORAGE_KEYS.ADAPT_MOOD, String(enabled));
@@ -306,27 +298,38 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return systemScheme === 'dark';
   }, [themeMode, systemScheme]);
 
-  // Compute Active Colors with Mood Adaptation
+  // Compute Active Colors with Priority:
+  // 1. Mood mapping if adaptToMood is active and currentMood exists
+  // 2. User's chosen accent palette
+  // 3. Default mint
   const colors = useMemo<ThemeColors>(() => {
     const base = isDark ? baseDarkColors : baseLightColors;
+    const activePaletteKey = resolveActiveAccent(accentPalette, adaptToMood, currentMood);
+    const tokens = ACCENT_PALETTES[activePaletteKey] || ACCENT_PALETTES.mint;
 
-    if (adaptToMood && currentMood && moodOverlays[currentMood]) {
-      const moodConfig = moodOverlays[currentMood];
-      return {
-        ...base,
-        background: isDark ? moodConfig.darkBg : moodConfig.lightBg,
-        primary: isDark ? moodConfig.darkPrimary : moodConfig.lightPrimary,
-        accentMoodColor: isDark ? moodConfig.darkPrimary : moodConfig.lightPrimary,
-      };
-    }
+    const frosted = isDark ? FrostedTokens.dark : FrostedTokens.light;
 
-    return base;
-  }, [isDark, adaptToMood, currentMood]);
+    return {
+      ...base,
+      primary: tokens.main,
+      accent: tokens.main,
+      accentSoft: tokens.soft,
+      accentText: tokens.text,
+      accentMoodColor: tokens.main,
+      glowTop: isDark ? tokens.glowTopDark : tokens.glowTop,
+      glowBottom: isDark ? tokens.glowBottomDark : tokens.glowBottom,
+      frostedBg: frosted.background,
+      frostedBorder: frosted.border,
+      canvas: isDark ? CanvasColors.dark : CanvasColors.light,
+      background: isDark ? CanvasColors.dark : CanvasColors.light,
+    };
+  }, [isDark, accentPalette, adaptToMood, currentMood]);
 
   return (
     <ThemeContext.Provider
       value={{
         themeMode,
+        accentPalette,
         adaptToMood,
         currentMood,
         dailyMoodReminderEnabled,
@@ -338,6 +341,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         colors,
         isDark,
         setThemeMode,
+        setAccentPalette,
         setAdaptToMood,
         setCurrentMood,
         setDailyMoodReminderEnabled,

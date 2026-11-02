@@ -14,12 +14,16 @@ import { BloomHeader } from '../../components/dashboard/BloomHeader';
 import { TodayOverviewSection } from '../../components/dashboard/TodayOverviewSection';
 import { QuickAccessSection } from '../../components/dashboard/QuickAccessSection';
 import { DailyGoalsSection } from '../../components/dashboard/DailyGoalsSection';
+import { StaggerContainer } from '../../components/animations/StaggerContainer';
+import { StaggerItem } from '../../components/animations/StaggerItem';
+import { BackgroundGlow } from '../../components/theme/BackgroundGlow';
 import {
   getUserTasks,
   addTask,
   updateTask,
   deleteTask,
 } from '../../services/firestoreService';
+import { loadWeeklyUsage, recordTodayUsage } from '../../services/storageService';
 import { TaskDocument } from '../../types';
 
 export default function HomeScreen() {
@@ -33,7 +37,7 @@ export default function HomeScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // In-App Screen Time State
-  const [screenTimeMinutes, setScreenTimeMinutes] = useState<number>(38);
+  const [screenTimeMinutes, setScreenTimeMinutes] = useState<number>(0);
 
   const activeUserName = userProfile?.fullName || user?.displayName || 'Friend';
 
@@ -45,36 +49,7 @@ export default function HomeScreen() {
     }
     try {
       const fetched = await getUserTasks(user.uid);
-      if (fetched.length === 0) {
-        // Seed 4 initial default goals in Firestore if brand-new user
-        const initialTasks = [
-          'Complete today\'s study goals',
-          'Take a 20-minute mindful walk',
-          'Drink enough water (2.5L)',
-          'Write a mindful journal reflection',
-        ];
-        const seeded: TaskDocument[] = [];
-        for (const title of initialTasks) {
-          const id = await addTask({
-            userId: user.uid,
-            title,
-            completed: false,
-            category: 'wellness',
-          });
-          seeded.push({
-            id,
-            userId: user.uid,
-            title,
-            completed: false,
-            category: 'wellness',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-        }
-        setTasks(seeded);
-      } else {
-        setTasks(fetched);
-      }
+      setTasks(fetched);
     } catch (err) {
       console.warn('[HomeScreen] Error loading tasks:', err);
     } finally {
@@ -89,13 +64,23 @@ export default function HomeScreen() {
 
   // 2. Track In-App Screen Time Today
   useEffect(() => {
-    const todayKey = `@bloom_app_usage_${new Date().toISOString().split('T')[0]}`;
-    AsyncStorage.getItem(todayKey).then((saved) => {
-      const minutes = saved ? parseInt(saved, 10) : 38;
-      setScreenTimeMinutes(minutes);
-      // Increment session active minutes
-      AsyncStorage.setItem(todayKey, String(minutes + 2)).catch(() => {});
-    }).catch(() => {});
+    let isMounted = true;
+    const loadUsage = async () => {
+      try {
+        const weekly = await loadWeeklyUsage();
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todayEntry = weekly.find((w) => w.date === todayStr);
+        if (isMounted) {
+          setScreenTimeMinutes(todayEntry ? todayEntry.minutes : 0);
+        }
+      } catch (err) {
+        console.warn('[HomeScreen] Error loading screen time:', err);
+      }
+    };
+    loadUsage();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleRefresh = () => {
@@ -180,7 +165,7 @@ export default function HomeScreen() {
   const totalTasksCount = tasks.length;
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+    <BackgroundGlow style={styles.screen}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -193,44 +178,54 @@ export default function HomeScreen() {
           />
         }
       >
-        {/* 1. HEADER (Logo & Settings Button) + 2. GREETING (Personalised) + 3. MOTIVATIONAL MESSAGE */}
-        <BloomHeader
-          userName={activeUserName}
-          onSettingsPress={() => router.push('/settings')}
-        />
+        <StaggerContainer baseDelay={0} interval={60}>
+          {/* 1. HEADER (Logo & Settings Button) + 2. GREETING (Personalised) + 3. MOTIVATIONAL MESSAGE */}
+          <StaggerItem role="header">
+            <BloomHeader
+              userName={activeUserName}
+              onSettingsPress={() => router.push('/settings')}
+            />
+          </StaggerItem>
 
-        {/* 4. TODAY'S OVERVIEW (4 Tiles: Tasks Done, Screen Time, SOS Signal, Reports) */}
-        <TodayOverviewSection
-          tasksDoneCount={completedTasksCount}
-          totalTasksCount={totalTasksCount}
-          screenTimeText={`${screenTimeMinutes}m`}
-          onOpenTasks={() => router.push('/(tabs)/tasks')}
-          onOpenSOS={() => router.push('/sos')}
-          onOpenReports={() => router.push('/reports')}
-        />
+          {/* 4. TODAY'S OVERVIEW (4 Tiles: Tasks Done, Screen Time, SOS Signal, Reports) */}
+          <StaggerItem role="card" delay={100}>
+            <TodayOverviewSection
+              tasksDoneCount={completedTasksCount}
+              totalTasksCount={totalTasksCount}
+              screenTimeText={`${screenTimeMinutes}m`}
+              onOpenTasks={() => router.push('/(tabs)/tasks')}
+              onOpenSOS={() => router.push('/sos')}
+              onOpenReports={() => router.push('/reports')}
+            />
+          </StaggerItem>
 
-        {/* 5. QUICK ACCESS (4 Tiles: Heal Bubble, Talk to BLOOM, Write Journal, Focus Mode) */}
-        <QuickAccessSection
-          onOpenHealBubble={() => router.push('/heal-bubble')}
-          onOpenAI={() => router.push('/(tabs)/ai')}
-          onOpenJournal={() => router.push('/journal')}
-          onOpenFocusMode={() => router.push('/focus-mode')}
-        />
+          {/* 5. QUICK ACCESS (4 Tiles: Heal Bubble, Talk to BLOOM, Write Journal, Focus Mode) */}
+          <StaggerItem role="card" delay={180}>
+            <QuickAccessSection
+              onOpenHealBubble={() => router.push('/heal-bubble')}
+              onOpenAI={() => router.push('/(tabs)/ai')}
+              onOpenJournal={() => router.push('/journal')}
+              onOpenFocusMode={() => router.push('/focus-mode')}
+            />
+          </StaggerItem>
 
-        {/* 6. DAILY GOALS (To-Do List with Checkboxes, + Create Task, Edit & Delete) */}
-        <DailyGoalsSection
-          tasks={tasks}
-          isLoading={tasksLoading}
-          onToggleTask={handleToggleTask}
-          onAddTask={handleAddTask}
-          onDeleteTask={handleDeleteTask}
-          onEditTask={handleEditTask}
-        />
+          {/* 6. DAILY GOALS (To-Do List with Checkboxes, + Create Task, Edit & Delete) */}
+          <StaggerItem role="remaining" delay={240}>
+            <DailyGoalsSection
+              tasks={tasks}
+              isLoading={tasksLoading}
+              onToggleTask={handleToggleTask}
+              onAddTask={handleAddTask}
+              onDeleteTask={handleDeleteTask}
+              onEditTask={handleEditTask}
+            />
+          </StaggerItem>
+        </StaggerContainer>
 
         {/* Bottom spacing for bottom navigation bar */}
         <View style={{ height: 100 }} />
       </ScrollView>
-    </View>
+    </BackgroundGlow>
   );
 }
 
