@@ -93,7 +93,7 @@ export default function AICompanionScreen() {
   const { user, userProfile } = useAuth();
 
   // Mode state: 'VOICE' = Bot speaking audio with prominent mascot; 'CHAT' = pure text chat stream
-  const [companionMode, setCompanionMode] = useState<'VOICE' | 'CHAT'>('VOICE');
+  const [companionMode, setCompanionMode] = useState<'VOICE' | 'CHAT'>('CHAT');
 
   // Voice Mode state
   const [mascotState, setMascotState] = useState<MascotState>('IDLE');
@@ -1425,7 +1425,7 @@ export default function AICompanionScreen() {
         <View
           style={[
             styles.composerBar,
-            { paddingBottom: Math.max(insets.bottom, 12) },
+            { paddingBottom: Math.max(insets.bottom, 12) + (Platform.OS === 'android' ? 70 : 76) },
           ]}
         >
           {/* Pending Attachment Chip Preview (ChatGPT Style) */}
@@ -2575,7 +2575,7 @@ const styles = StyleSheet.create({
   },
   chatScrollContent: {
     paddingTop: 14,
-    paddingBottom: 24,
+    paddingBottom: 36,
     gap: 12,
   },
   msgRow: {

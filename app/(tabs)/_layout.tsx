@@ -332,6 +332,20 @@ export default function TabLayout() {
           href: null,
         }}
       />
+
+      <Tabs.Screen
+        name="ai-companion"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="bloom-circle"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

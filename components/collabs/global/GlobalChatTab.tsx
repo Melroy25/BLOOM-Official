@@ -1001,7 +1001,7 @@ export const GlobalChatTab: React.FC<GlobalChatTabProps> = ({
       )}
 
       {/* Bottom Composer Capsule */}
-      <View style={[styles.composerWrapper, { paddingBottom: bottomInset }]}>
+      <View style={[styles.composerWrapper, { paddingBottom: bottomInset + (Platform.OS === 'android' ? 68 : 74) }]}>
         <View style={[styles.composerCapsule, Shadows.sm]}>
           {/* WhatsApp Attachment Plus (+) Button */}
           <TouchableOpacity

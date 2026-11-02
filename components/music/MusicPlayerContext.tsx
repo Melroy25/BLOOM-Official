@@ -122,25 +122,8 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       } catch (e) {}
     }
 
-    // 1. Try audio URI (remote or user-uploaded blob/file)
-    if (audioUri) {
-      try {
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: audioUri },
-          { shouldPlay: true, progressUpdateIntervalMillis: 250 },
-          onPlaybackStatusUpdate
-        );
-        soundRef.current = sound;
-        loadedSuccessfully = true;
-        setIsPlaying(true);
-        setIsLoading(false);
-      } catch (remoteError) {
-        // Fall back to bundled asset if applicable
-      }
-    }
-
-    // 2. Fall back to local bundled asset if remote failed or is not configured
-    if (!loadedSuccessfully && song.localAsset) {
+    // 1. If song has a bundled local asset, play it immediately for instant offline playback
+    if (song.localAsset) {
       try {
         const { sound } = await Audio.Sound.createAsync(
           song.localAsset,
@@ -152,6 +135,23 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setIsPlaying(true);
         setIsLoading(false);
       } catch (localError: any) {
+        // Fall back to remote audio URI below
+      }
+    }
+
+    // 2. Fall back to remote/user-uploaded audio URI
+    if (!loadedSuccessfully && audioUri) {
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: audioUri },
+          { shouldPlay: true, progressUpdateIntervalMillis: 250 },
+          onPlaybackStatusUpdate
+        );
+        soundRef.current = sound;
+        loadedSuccessfully = true;
+        setIsPlaying(true);
+        setIsLoading(false);
+      } catch (remoteError) {
         setError('Could not load audio track. Please try again.');
         setIsPlaying(false);
         setIsLoading(false);

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAudioPlayer } from 'expo-audio';
+import { Audio } from 'expo-av';
 import Svg, { Path } from 'react-native-svg';
 import {
   CheckCircle2,
@@ -237,8 +237,18 @@ export default function HealZoneScreen() {
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isSessionCompleted, setIsSessionCompleted] = useState(false);
 
-  // Audio player for ambient singing bowl / rain
-  const player = useAudioPlayer(require('../../assets/audio/singing-bowl.mp3'));
+  // Audio sound instance for ambient singing bowl / rain using expo-av
+  const ambientSoundRef = useRef<Audio.Sound | null>(null);
+
+  // Clean up sound on unmount
+  useEffect(() => {
+    return () => {
+      if (ambientSoundRef.current) {
+        ambientSoundRef.current.unloadAsync().catch(() => {});
+        ambientSoundRef.current = null;
+      }
+    };
+  }, []);
 
   // Center Breathing Bubble Animation (Scale 0.85 -> 1.35)
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -304,9 +314,7 @@ export default function HealZoneScreen() {
           if (prev <= 1) {
             if (timerRef.current) clearInterval(timerRef.current);
             setIsSessionCompleted(true);
-            try {
-              player.pause();
-            } catch (e) {}
+            ambientSoundRef.current?.pauseAsync().catch(() => {});
             if (user?.uid) {
               addWellnessActivity({
                 userId: user.uid,
@@ -325,19 +333,27 @@ export default function HealZoneScreen() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isFocusModalVisible, isSessionCompleted, player]);
+  }, [isFocusModalVisible, isSessionCompleted, user?.uid]);
 
   // Start Focus Session
-  const handleStartFocusSession = () => {
+  const handleStartFocusSession = async () => {
     setSecondsRemaining(60);
     setIsSessionCompleted(false);
     scaleAnim.setValue(1);
     setIsFocusModalVisible(true);
 
     try {
-      if (!isAudioMuted) {
-        player.seekTo(0);
-        player.play();
+      if (!ambientSoundRef.current) {
+        const { sound } = await Audio.Sound.createAsync(
+          require('../../assets/audio/singing-bowl.mp3'),
+          { shouldPlay: !isAudioMuted, isLooping: true, volume: 0.85 }
+        );
+        ambientSoundRef.current = sound;
+      } else {
+        await ambientSoundRef.current.setPositionAsync(0);
+        if (!isAudioMuted) {
+          await ambientSoundRef.current.playAsync();
+        }
       }
     } catch (e) {
       // Graceful audio playback fallback
@@ -352,22 +368,27 @@ export default function HealZoneScreen() {
     setIsSessionCompleted(false);
     scaleAnim.setValue(1);
 
-    try {
-      player.pause();
-    } catch (e) {}
+    ambientSoundRef.current?.pauseAsync().catch(() => {});
   };
 
   // Toggle Audio Mute
   const handleToggleAudio = () => {
     setIsAudioMuted(prev => {
       const nextMuted = !prev;
-      try {
-        if (nextMuted) {
-          player.pause();
+      if (nextMuted) {
+        ambientSoundRef.current?.pauseAsync().catch(() => {});
+      } else {
+        if (!ambientSoundRef.current) {
+          Audio.Sound.createAsync(
+            require('../../assets/audio/singing-bowl.mp3'),
+            { shouldPlay: true, isLooping: true, volume: 0.85 }
+          ).then(({ sound }) => {
+            ambientSoundRef.current = sound;
+          }).catch(() => {});
         } else {
-          player.play();
+          ambientSoundRef.current.playAsync().catch(() => {});
         }
-      } catch (e) {}
+      }
       return nextMuted;
     });
   };
