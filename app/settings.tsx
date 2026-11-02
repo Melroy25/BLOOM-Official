@@ -45,6 +45,7 @@ export default function SettingsScreen() {
 
   const {
     themeMode,
+    themeColor,
     accentPalette,
     adaptToMood,
     currentMood,
@@ -57,6 +58,7 @@ export default function SettingsScreen() {
     colors,
     isDark,
     setThemeMode,
+    setThemeColor,
     setAccentPalette,
     setAdaptToMood,
     setDailyMoodReminderEnabled,
@@ -227,10 +229,10 @@ export default function SettingsScreen() {
 
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-            {/* Accent Palette Selector */}
+            {/* Dynamic Theme Color System (Green, Blue, Pink) */}
             <View style={{ marginTop: 14, marginBottom: 8 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <Text style={[styles.itemTitle, { color: colors.darkText }]}>Accent Palette</Text>
+                <Text style={[styles.itemTitle, { color: colors.darkText }]}>Theme Color Palette</Text>
                 {adaptToMood && (
                   <View style={[styles.adaptiveBadge, { backgroundColor: colors.accentSoft }]}>
                     <Sparkles size={11} color={colors.accent} />
@@ -240,44 +242,101 @@ export default function SettingsScreen() {
                   </View>
                 )}
               </View>
-              <Text style={[styles.itemSubtitle, { color: colors.mutedText, marginBottom: 10 }]}>
-                Choose your signature ambient highlight color across all screens.
+              <Text style={[styles.itemSubtitle, { color: colors.mutedText, marginBottom: 12 }]}>
+                Select your signature ambient aura, particle tint, and active navigation indicator.
               </Text>
 
-              <View style={styles.paletteRow}>
-                {(['yellow', 'mint', 'pink', 'blue'] as AccentPalette[]).map((paletteKey) => {
-                  const pal = ACCENT_PALETTES[paletteKey];
-                  const isSelected = accentPalette === paletteKey;
+              <View style={styles.themePaletteColumn}>
+                {[
+                  {
+                    key: 'green' as const,
+                    name: 'Green Theme',
+                    badge: 'Sage Green',
+                    desc: 'Primary Sage (#789B83) · Light Sage (#E8F1E8) · Soft Green Aura',
+                    primary: '#789B83',
+                    soft: '#E8F1E8',
+                    aura: 'rgba(120, 155, 131, 0.35)',
+                  },
+                  {
+                    key: 'blue' as const,
+                    name: 'Blue Theme',
+                    badge: 'Sky Blue',
+                    desc: 'Soft Sky Blue (#4A90E2) · Light Ice Blue (#E3F2FD) · Cool Blue Aura',
+                    primary: '#4A90E2',
+                    soft: '#E3F2FD',
+                    aura: 'rgba(74, 144, 226, 0.35)',
+                  },
+                  {
+                    key: 'pink' as const,
+                    name: 'Pink Theme',
+                    badge: 'Rose Pink',
+                    desc: 'Soft Rose Pink (#E06D85) · Light Blush (#FCE4EC) · Gentle Pink Aura',
+                    primary: '#E06D85',
+                    soft: '#FCE4EC',
+                    aura: 'rgba(224, 109, 133, 0.35)',
+                  },
+                ].map((item) => {
+                  const isSelected = themeColor === item.key;
                   return (
                     <TouchableOpacity
-                      key={paletteKey}
+                      key={item.key}
                       style={[
-                        styles.paletteCard,
+                        styles.themeOptionCard,
                         {
-                          backgroundColor: isSelected ? colors.frostedBg : (isDark ? '#1C241E' : '#FFFFFF'),
-                          borderColor: isSelected ? pal.main : colors.border,
+                          backgroundColor: isSelected
+                            ? colors.frostedBg
+                            : (isDark ? '#1C241E' : '#FFFFFF'),
+                          borderColor: isSelected ? item.primary : colors.border,
                           borderWidth: isSelected ? 2 : 1,
                         },
                       ]}
                       onPress={async () => {
-                        await setAccentPalette(paletteKey);
+                        await setThemeColor(item.key);
                       }}
                       activeOpacity={0.8}
                     >
-                      <View style={[styles.paletteDot, { backgroundColor: pal.main }]}>
-                        {isSelected && <Check size={12} color="#FFFFFF" strokeWidth={3} />}
+                      {/* Left: Color Dot with Inner Soft Circle */}
+                      <View style={[styles.themeOptionSwatch, { backgroundColor: item.soft, borderColor: item.primary }]}>
+                        <View style={[styles.themeOptionDot, { backgroundColor: item.primary }]}>
+                          {isSelected && <Check size={12} color="#FFFFFF" strokeWidth={3.2} />}
+                        </View>
                       </View>
-                      <Text
+
+                      {/* Middle: Details */}
+                      <View style={styles.themeOptionDetails}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text
+                            style={[
+                              styles.themeOptionTitle,
+                              {
+                                color: isSelected ? colors.darkText : colors.darkText,
+                                fontWeight: isSelected ? '700' : '600',
+                              },
+                            ]}
+                          >
+                            {item.name}
+                          </Text>
+                          <View style={[styles.themePillTag, { backgroundColor: item.soft }]}>
+                            <Text style={[styles.themePillTagText, { color: item.primary }]}>{item.badge}</Text>
+                          </View>
+                        </View>
+                        <Text style={[styles.themeOptionDesc, { color: colors.mutedText }]} numberOfLines={1}>
+                          {item.desc}
+                        </Text>
+                      </View>
+
+                      {/* Right Selection Indicator */}
+                      <View
                         style={[
-                          styles.paletteLabel,
+                          styles.themeRadioCircle,
                           {
-                            color: isSelected ? colors.darkText : colors.mutedText,
-                            fontWeight: isSelected ? '700' : '500',
+                            borderColor: isSelected ? item.primary : colors.border,
+                            backgroundColor: isSelected ? item.primary : 'transparent',
                           },
                         ]}
                       >
-                        {pal.name.charAt(0).toUpperCase() + pal.name.slice(1)}
-                      </Text>
+                        {isSelected && <View style={styles.themeRadioInner} />}
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -876,6 +935,65 @@ const styles = StyleSheet.create({
   },
   paletteLabel: {
     fontSize: 11.5,
+  },
+  themePaletteColumn: {
+    gap: 10,
+    marginTop: 4,
+  },
+  themeOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 14,
+    gap: 12,
+  },
+  themeOptionSwatch: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeOptionDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeOptionDetails: {
+    flex: 1,
+    gap: 2,
+  },
+  themeOptionTitle: {
+    fontSize: 14,
+  },
+  themePillTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  themePillTagText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+  themeOptionDesc: {
+    fontSize: 11.5,
+  },
+  themeRadioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeRadioInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
   },
   adaptiveBadge: {
     flexDirection: 'row',

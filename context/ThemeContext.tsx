@@ -5,6 +5,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { MoodType } from '../types';
 import {
+  ThemeColor,
   AccentPalette,
   ACCENT_PALETTES,
   CanvasColors,
@@ -13,7 +14,7 @@ import {
 } from '../constants/theme';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
-export type { AccentPalette };
+export type { ThemeColor, AccentPalette };
 
 export interface ThemeColors {
   primary: string;
@@ -48,10 +49,13 @@ export interface ThemeColors {
   glowBottom: string;
   frostedBg: string;
   frostedBorder: string;
+  highlightBorder: string;
+  themeColor: ThemeColor;
 }
 
 export interface SettingsState {
   themeMode: ThemeMode;
+  themeColor: ThemeColor;
   accentPalette: AccentPalette;
   adaptToMood: boolean;
   currentMood: MoodType | null;
@@ -67,6 +71,7 @@ interface ThemeContextType extends SettingsState {
   colors: ThemeColors;
   isDark: boolean;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
+  setThemeColor: (color: ThemeColor) => Promise<void>;
   setAccentPalette: (palette: AccentPalette) => Promise<void>;
   setAdaptToMood: (enabled: boolean) => Promise<void>;
   setCurrentMood: (mood: MoodType) => void;
@@ -80,6 +85,7 @@ interface ThemeContextType extends SettingsState {
 
 const STORAGE_KEYS = {
   THEME_MODE: '@bloom_theme_mode',
+  THEME_COLOR: '@bloom_theme_color',
   ACCENT_PALETTE: '@bloom_accent_palette',
   ADAPT_MOOD: '@bloom_adapt_mood',
   LAST_MOOD: '@bloom_last_mood',
@@ -147,7 +153,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const systemScheme = useColorScheme();
 
   const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
-  const [accentPalette, setAccentPaletteState] = useState<AccentPalette>('mint');
+  const [themeColor, setThemeColorState] = useState<ThemeColor>('green');
+  const [accentPalette, setAccentPaletteState] = useState<AccentPalette>('green');
   const [adaptToMood, setAdaptToMoodState] = useState<boolean>(true);
   const [currentMood, setCurrentMoodState] = useState<MoodType | null>(null);
 
@@ -168,9 +175,17 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           setThemeModeState(storedTheme);
         }
 
-        const storedAccent = await AsyncStorage.getItem(STORAGE_KEYS.ACCENT_PALETTE);
-        if (storedAccent === 'yellow' || storedAccent === 'mint' || storedAccent === 'pink' || storedAccent === 'blue') {
-          setAccentPaletteState(storedAccent);
+        const storedColor = await AsyncStorage.getItem(STORAGE_KEYS.THEME_COLOR);
+        if (storedColor === 'green' || storedColor === 'blue' || storedColor === 'pink') {
+          setThemeColorState(storedColor);
+          setAccentPaletteState(storedColor);
+        } else {
+          const storedAccent = await AsyncStorage.getItem(STORAGE_KEYS.ACCENT_PALETTE);
+          if (storedAccent === 'pink' || storedAccent === 'blue' || storedAccent === 'green' || storedAccent === 'mint' || storedAccent === 'yellow') {
+            const mapped = (storedAccent === 'blue' ? 'blue' : storedAccent === 'pink' ? 'pink' : 'green') as ThemeColor;
+            setThemeColorState(mapped);
+            setAccentPaletteState(storedAccent as AccentPalette);
+          }
         }
 
         const storedAdapt = await AsyncStorage.getItem(STORAGE_KEYS.ADAPT_MOOD);
@@ -238,8 +253,20 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     syncToFirestore({ theme: mode });
   };
 
+  const setThemeColor = async (color: ThemeColor) => {
+    setThemeColorState(color);
+    setAccentPaletteState(color);
+    await AsyncStorage.setItem(STORAGE_KEYS.THEME_COLOR, color);
+    await AsyncStorage.setItem(STORAGE_KEYS.ACCENT_PALETTE, color);
+    syncToFirestore({ themeColor: color, accentPalette: color });
+  };
+
   const setAccentPalette = async (palette: AccentPalette) => {
     setAccentPaletteState(palette);
+    if (palette === 'green' || palette === 'blue' || palette === 'pink') {
+      setThemeColorState(palette);
+      await AsyncStorage.setItem(STORAGE_KEYS.THEME_COLOR, palette);
+    }
     await AsyncStorage.setItem(STORAGE_KEYS.ACCENT_PALETTE, palette);
     syncToFirestore({ accentPalette: palette });
   };
@@ -304,10 +331,13 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // 3. Default mint
   const colors = useMemo<ThemeColors>(() => {
     const base = isDark ? baseDarkColors : baseLightColors;
-    const activePaletteKey = resolveActiveAccent(accentPalette, adaptToMood, currentMood);
-    const tokens = ACCENT_PALETTES[activePaletteKey] || ACCENT_PALETTES.mint;
+    const activePaletteKey = resolveActiveAccent(themeColor || accentPalette, adaptToMood, currentMood);
+    const tokens = ACCENT_PALETTES[activePaletteKey] || ACCENT_PALETTES.green;
 
     const frosted = isDark ? FrostedTokens.dark : FrostedTokens.light;
+
+    const activeThemeColor: ThemeColor =
+      activePaletteKey === 'blue' ? 'blue' : activePaletteKey === 'pink' ? 'pink' : 'green';
 
     return {
       ...base,
@@ -316,19 +346,22 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       accentSoft: tokens.soft,
       accentText: tokens.text,
       accentMoodColor: tokens.main,
+      highlightBorder: tokens.main,
       glowTop: isDark ? tokens.glowTopDark : tokens.glowTop,
       glowBottom: isDark ? tokens.glowBottomDark : tokens.glowBottom,
       frostedBg: frosted.background,
       frostedBorder: frosted.border,
       canvas: isDark ? CanvasColors.dark : CanvasColors.light,
       background: isDark ? CanvasColors.dark : CanvasColors.light,
+      themeColor: activeThemeColor,
     };
-  }, [isDark, accentPalette, adaptToMood, currentMood]);
+  }, [isDark, themeColor, accentPalette, adaptToMood, currentMood]);
 
   return (
     <ThemeContext.Provider
       value={{
         themeMode,
+        themeColor,
         accentPalette,
         adaptToMood,
         currentMood,
@@ -341,6 +374,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         colors,
         isDark,
         setThemeMode,
+        setThemeColor,
         setAccentPalette,
         setAdaptToMood,
         setCurrentMood,

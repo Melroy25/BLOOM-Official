@@ -44,6 +44,8 @@ import AssignmentTracker from '../../../components/tasks/AssignmentTracker';
 import StudentTasksView from '../../../components/tasks/StudentTasksView';
 import SleepStressView from '../../../components/tasks/SleepStressView';
 import SafetyHardwareView from '../../../components/tasks/SafetyHardwareView';
+import { BackgroundGlow } from '../../../components/theme/BackgroundGlow';
+import { useTheme } from '../../../context/ThemeContext';
 import {
   getBackendTasks,
   saveBackendTask,
@@ -71,6 +73,7 @@ export default function TasksMainHubScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 20 : 16);
+  const { colors, isDark } = useTheme();
 
   // Quote Ticker Automated Rightward Movement State
   const [quoteIdx, setQuoteIdx] = useState(0);
@@ -176,37 +179,49 @@ export default function TasksMainHubScreen() {
   const cardWidth = (SCREEN_WIDTH - Spacing.xl * 2 - 14) / 2;
 
   return (
-    <View style={styles.screen}>
-      {/* ── 1. Top Header ─────────────────────────────────────────────── */}
+    <BackgroundGlow style={styles.screen}>
+      {/* ── 1. Top Header (Circular back button, centered title + subtitle, right round red SOS badge) ── */}
       <View style={[styles.headerContainer, { paddingTop: topPadding }]}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity
-            style={styles.headerIconButton}
-            activeOpacity={0.7}
-            onPress={() => router.back()}
-          >
-            <ChevronLeft size={24} color="#29332E" strokeWidth={2.2} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Tasks</Text>
+        <TouchableOpacity
+          style={[
+            styles.headerIconButton,
+            Shadows.sm,
+            { backgroundColor: colors.white, borderColor: colors.border },
+          ]}
+          activeOpacity={0.75}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)');
+            }
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
+          <ChevronLeft size={22} color={colors.darkText} strokeWidth={2.4} />
+        </TouchableOpacity>
+
+        <View style={styles.headerCenterWrap}>
+          <Text style={[styles.headerTitle, { color: colors.darkText }]}>Tasks</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.mutedText }]}>
+            Stay on top of your daily goals
+          </Text>
         </View>
 
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.headerFilterBtn}
-            activeOpacity={0.7}
-            onPress={() => setActiveDetailModule('more')}
-          >
-            <SlidersHorizontal size={18} color="#29332E" strokeWidth={2} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.profileAvatar}
-            activeOpacity={0.7}
-            onPress={() => router.push('/ai')}
-          >
-            <Text style={styles.avatarInitial}>K</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={[
+            styles.sosBadgeBtn,
+            Shadows.sm,
+            { backgroundColor: colors.white, borderColor: '#E06D53' },
+          ]}
+          activeOpacity={0.8}
+          onPress={() => router.push('/sos')}
+          accessibilityRole="button"
+          accessibilityLabel="SOS Emergency Signal"
+        >
+          <Text style={styles.sosSymbolText}>SOS</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -445,19 +460,6 @@ export default function TasksMainHubScreen() {
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* ── 6. Floating AI Assistant Button (Bottom Right) ───────────── */}
-      {/* TODO: Connect trigger to Keerthana's AI Companion module (Bloom/Home-AI) */}
-      <TouchableOpacity
-        style={[styles.floatingAiButton, Shadows.md]}
-        activeOpacity={0.85}
-        onPress={() => router.push('/ai')}
-      >
-        <View style={styles.aiGlowRing} />
-        <View style={styles.aiInnerAvatar}>
-          <Sparkles size={24} color="#FFFFFF" strokeWidth={2} />
-        </View>
-      </TouchableOpacity>
-
       {/* ── 7. Module Detail Modal (for Student Tasks, Sleep, Habits, SOS) ── */}
       <Modal
         visible={activeDetailModule !== null}
@@ -498,70 +500,58 @@ export default function TasksMainHubScreen() {
           )}
         </View>
       </Modal>
-    </View>
+    </BackgroundGlow>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FAF8F2', // Off-white / Cream
   },
   headerContainer: {
-    backgroundColor: '#FAF8F2',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.md,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
   headerIconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerCenterWrap: {
+    flex: 1,
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#29332E', // Dark Slate
     letterSpacing: -0.3,
   },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  headerSubtitle: {
+    fontSize: 12,
+    fontWeight: '400',
+    textAlign: 'center',
+    marginTop: 2,
   },
-  headerFilterBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E8ECE9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#D9EEE5', // Soft Mint
-    alignItems: 'center',
-    justifyContent: 'center',
+  sosBadgeBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     borderWidth: 1.5,
-    borderColor: '#789B83',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  avatarInitial: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#365B45', // Dark Forest Green
+  sosSymbolText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#E06D53',
+    letterSpacing: 0.5,
   },
 
   scrollView: {

@@ -7,7 +7,8 @@
 
 import { MoodType } from '../types';
 
-export type AccentPalette = 'yellow' | 'mint' | 'pink' | 'blue';
+export type ThemeColor = 'green' | 'blue' | 'pink';
+export type AccentPalette = 'green' | 'blue' | 'pink' | 'mint' | 'yellow';
 
 export interface AccentTokens {
   name: string;
@@ -22,6 +23,50 @@ export interface AccentTokens {
 }
 
 export const ACCENT_PALETTES: Record<AccentPalette, AccentTokens> = {
+  green: {
+    name: 'green',
+    label: 'Sage Green',
+    main: '#789B83', // Primary Sage
+    soft: '#E8F1E8', // Light Sage
+    text: '#204731',
+    glowTop: 'rgba(120, 155, 131, 0.32)',
+    glowBottom: 'rgba(232, 241, 232, 0.22)',
+    glowTopDark: 'rgba(120, 155, 131, 0.20)',
+    glowBottomDark: 'rgba(232, 241, 232, 0.10)',
+  },
+  blue: {
+    name: 'blue',
+    label: 'Sky Blue',
+    main: '#4A90E2', // Soft Sky Blue
+    soft: '#E3F2FD', // Light Ice Blue
+    text: '#1E3A8A',
+    glowTop: 'rgba(74, 144, 226, 0.32)',
+    glowBottom: 'rgba(227, 242, 253, 0.22)',
+    glowTopDark: 'rgba(74, 144, 226, 0.20)',
+    glowBottomDark: 'rgba(227, 242, 253, 0.10)',
+  },
+  pink: {
+    name: 'pink',
+    label: 'Rose Pink',
+    main: '#E06D85', // Soft Rose Pink
+    soft: '#FCE4EC', // Light Blush
+    text: '#831843',
+    glowTop: 'rgba(224, 109, 133, 0.32)',
+    glowBottom: 'rgba(252, 228, 236, 0.22)',
+    glowTopDark: 'rgba(224, 109, 133, 0.20)',
+    glowBottomDark: 'rgba(252, 228, 236, 0.10)',
+  },
+  mint: {
+    name: 'mint',
+    label: 'Sage Green',
+    main: '#789B83',
+    soft: '#E8F1E8',
+    text: '#204731',
+    glowTop: 'rgba(120, 155, 131, 0.32)',
+    glowBottom: 'rgba(232, 241, 232, 0.22)',
+    glowTopDark: 'rgba(120, 155, 131, 0.20)',
+    glowBottomDark: 'rgba(232, 241, 232, 0.10)',
+  },
   yellow: {
     name: 'yellow',
     label: 'Sunburst',
@@ -32,39 +77,6 @@ export const ACCENT_PALETTES: Record<AccentPalette, AccentTokens> = {
     glowBottom: 'rgba(251,227,166,0.16)',
     glowTopDark: 'rgba(245,185,58,0.14)',
     glowBottomDark: 'rgba(251,227,166,0.08)',
-  },
-  mint: {
-    name: 'mint',
-    label: 'Botanical',
-    main: '#10B981',
-    soft: '#D1FAE5',
-    text: '#065F46',
-    glowTop: 'rgba(52,211,153,0.25)',
-    glowBottom: 'rgba(167,243,208,0.14)',
-    glowTopDark: 'rgba(52,211,153,0.14)',
-    glowBottomDark: 'rgba(167,243,208,0.08)',
-  },
-  pink: {
-    name: 'pink',
-    label: 'Blossom',
-    main: '#EC4899',
-    soft: '#FCE7F3',
-    text: '#9D174D',
-    glowTop: 'rgba(244,114,182,0.25)',
-    glowBottom: 'rgba(251,207,232,0.14)',
-    glowTopDark: 'rgba(244,114,182,0.14)',
-    glowBottomDark: 'rgba(251,207,232,0.08)',
-  },
-  blue: {
-    name: 'blue',
-    label: 'Ocean',
-    main: '#3B82F6',
-    soft: '#DBEAFE',
-    text: '#1E40AF',
-    glowTop: 'rgba(96,165,250,0.25)',
-    glowBottom: 'rgba(191,219,254,0.14)',
-    glowTopDark: 'rgba(96,165,250,0.14)',
-    glowBottomDark: 'rgba(191,219,254,0.08)',
   },
 };
 
@@ -119,12 +131,14 @@ export const MOOD_ACCENT_MAP: Record<string, AccentPalette> = {
  * 3. Default -> 'mint'
  */
 export function resolveActiveAccent(
-  manualPalette: AccentPalette = 'mint',
+  manualPalette: AccentPalette | ThemeColor = 'green',
   adaptToMood: boolean = false,
   latestMood?: MoodType | string | null
 ): AccentPalette {
   if (adaptToMood && latestMood && MOOD_ACCENT_MAP[latestMood]) {
-    return MOOD_ACCENT_MAP[latestMood];
+    const mapped = MOOD_ACCENT_MAP[latestMood];
+    return mapped === 'mint' ? 'green' : mapped;
   }
-  return manualPalette || 'mint';
+  if (manualPalette === 'mint') return 'green';
+  return (manualPalette as AccentPalette) || 'green';
 }
