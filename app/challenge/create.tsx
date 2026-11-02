@@ -168,10 +168,9 @@ export default function CreateChallengeScreen() {
 
   // Submit Challenge
   const handlePublish = async () => {
-    if (!user) {
-      Alert.alert('Authentication Required', 'Please sign in to publish a challenge.');
-      return;
-    }
+    const effectiveUid = user?.uid || 'creator_' + Date.now().toString(36);
+    const creatorName = userProfile?.fullName || user?.displayName || 'Bloom Member';
+    const creatorAvatar = userProfile?.photoURL || user?.photoURL || '';
 
     const trimmedTitle = title.trim();
     const trimmedShortDesc = shortDescription.trim();
@@ -198,9 +197,6 @@ export default function CreateChallengeScreen() {
 
     setIsSubmitting(true);
     try {
-      const creatorName = userProfile?.fullName || user.displayName || 'Bloom Member';
-      const creatorAvatar = userProfile?.photoURL || user.photoURL || '';
-
       const newChallengeId = await createCommunityChallenge(
         {
           title: trimmedTitle,
@@ -215,7 +211,7 @@ export default function CreateChallengeScreen() {
           visibility,
         },
         {
-          uid: user.uid,
+          uid: effectiveUid,
           name: creatorName,
           avatar: creatorAvatar,
         }

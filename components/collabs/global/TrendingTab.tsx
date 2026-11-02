@@ -56,7 +56,11 @@ const CATEGORIES: ChallengeCategory[] = [
 type SortOption = 'popular' | 'recent' | 'shortest' | 'longest';
 
 export const TrendingTab: React.FC<TrendingTabProps> = ({
+  challenges: propChallenges = [],
+  onToggleJoinChallenge,
   onOpenCreateChallenge,
+  discussions = [],
+  onOpenDiscussionComments,
 }) => {
   const router = useRouter();
   const { user } = useAuth();
@@ -68,10 +72,17 @@ export const TrendingTab: React.FC<TrendingTabProps> = ({
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
   // Firestore Data State
-  const [challenges, setChallenges] = useState<Challenge[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [challenges, setChallenges] = useState<Challenge[]>(propChallenges);
+  const [isLoading, setIsLoading] = useState(propChallenges.length === 0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (propChallenges && propChallenges.length > 0) {
+      setChallenges(propChallenges);
+      setIsLoading(false);
+    }
+  }, [propChallenges]);
 
   // Load real Firestore challenges
   const loadChallenges = useCallback(async () => {

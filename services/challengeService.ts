@@ -20,6 +20,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Challenge,
   ChallengeCategory,
@@ -330,102 +331,124 @@ export async function getPublicChallenges(
   sortBy: 'popular' | 'recent' | 'shortest' | 'longest' = 'popular',
   currentUserId?: string
 ): Promise<Challenge[]> {
+  let list: Challenge[] = [];
+
   try {
     const colRef = collection(db, 'challenges');
     const q = query(colRef, where('visibility', '==', 'public'));
     const snap = await getDocs(q);
 
-    if (snap.empty) {
-      return [];
+    if (!snap.empty) {
+      list = snap.docs.map((docSnap) => {
+        const d = docSnap.data();
+        const count = typeof d.participantCount === 'number' ? d.participantCount : (d.participantsCount || 0);
+        return {
+          id: docSnap.id,
+          title: d.title || 'Untitled Challenge',
+          shortDescription: d.shortDescription || d.description || '',
+          description: d.description || '',
+          category: d.category || 'Productivity',
+          categoryTag: d.categoryTag || d.category || 'Challenge',
+          coverImageUrl: d.coverImageUrl || '',
+          duration: d.duration || `${d.durationDays || 30} Days`,
+          durationDays: d.durationDays || 30,
+          participantsCount: count,
+          participantsText: count === 1 ? '1 joined' : `${count.toLocaleString()} joined`,
+          isJoined: false,
+          isPopular: d.isPopular ?? (count >= 10),
+          isTrending: d.isTrending ?? (count >= 3),
+          creatorUid: d.creatorUid || '',
+          creatorName: d.creatorName || 'Bloom Member',
+          creatorAvatar: d.creatorAvatar || '',
+          visibility: d.visibility || 'public',
+          status: d.status || 'Active',
+          startDate: d.startDate || getTodayDateString(),
+          endDate: d.endDate || '',
+          dailyActivities: d.dailyActivities || [],
+          rules: d.rules || [],
+          gradientColors: d.gradientColors || ['#789B83', '#365B45'],
+          createdAt: d.createdAt,
+          updatedAt: d.updatedAt,
+        };
+      });
     }
-
-    let list: Challenge[] = snap.docs.map((docSnap) => {
-      const d = docSnap.data();
-      const count = typeof d.participantCount === 'number' ? d.participantCount : (d.participantsCount || 0);
-      return {
-        id: docSnap.id,
-        title: d.title || 'Untitled Challenge',
-        shortDescription: d.shortDescription || d.description || '',
-        description: d.description || '',
-        category: d.category || 'Productivity',
-        categoryTag: d.categoryTag || d.category || 'Challenge',
-        coverImageUrl: d.coverImageUrl || '',
-        duration: d.duration || `${d.durationDays || 30} Days`,
-        durationDays: d.durationDays || 30,
-        participantsCount: count,
-        participantsText: count === 1 ? '1 joined' : `${count.toLocaleString()} joined`,
-        isJoined: false,
-        isPopular: d.isPopular ?? (count >= 10),
-        isTrending: d.isTrending ?? (count >= 3),
-        creatorUid: d.creatorUid || '',
-        creatorName: d.creatorName || 'Bloom Member',
-        creatorAvatar: d.creatorAvatar || '',
-        visibility: d.visibility || 'public',
-        status: d.status || 'Active',
-        startDate: d.startDate || getTodayDateString(),
-        endDate: d.endDate || '',
-        dailyActivities: d.dailyActivities || [],
-        rules: d.rules || [],
-        gradientColors: d.gradientColors || ['#789B83', '#365B45'],
-        createdAt: d.createdAt,
-        updatedAt: d.updatedAt,
-      };
-    });
-
-    // Enrich with joined status if user ID provided
-    if (currentUserId) {
-      list = await Promise.all(
-        list.map(async (c) => {
-          const joined = await checkIsUserJoined(c.id, currentUserId);
-          return { ...c, isJoined: joined };
-        })
-      );
-    }
-
-    // 1. Filter by Category
-    if (category && category !== 'All') {
-      list = list.filter((c) => c.category === category);
-    }
-
-    // 2. Filter by Search Query
-    if (searchQuery && searchQuery.trim().length > 0) {
-      const qLower = searchQuery.trim().toLowerCase();
-      list = list.filter(
-        (c) =>
-          c.title.toLowerCase().includes(qLower) ||
-          c.category.toLowerCase().includes(qLower) ||
-          (c.shortDescription && c.shortDescription.toLowerCase().includes(qLower)) ||
-          c.description.toLowerCase().includes(qLower)
-      );
-    }
-
-    // 3. Sorting
-    switch (sortBy) {
-      case 'popular':
-        list.sort((a, b) => b.participantsCount - a.participantsCount);
-        break;
-      case 'recent':
-        list.sort((a, b) => {
-          const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
-          const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
-          return bTime - aTime;
-        });
-        break;
-      case 'shortest':
-        list.sort((a, b) => (a.durationDays || 30) - (b.durationDays || 30));
-        break;
-      case 'longest':
-        list.sort((a, b) => (b.durationDays || 30) - (a.durationDays || 30));
-        break;
-    }
-
-    return list;
   } catch (error: any) {
-    if (error?.code !== 'permission-denied') {
-      console.warn('[ChallengeService] Error fetching challenges:', error?.message || error);
-    }
-    return [];
+    console.warn('[ChallengeService] Error fetching challenges from Firestore:', error?.message || error);
   }
+
+  // Merge with locally created challenges so newly created trends stay permanently
+  try {
+    const cached = await AsyncStorage.getItem('@bloom_community_challenges');
+    if (cached) {
+      const localChallenges: Challenge[] = JSON.parse(cached);
+      const existingIds = new Set(list.map((c) => c.id));
+      for (const lc of localChallenges) {
+        if (!existingIds.has(lc.id)) {
+          list.unshift(lc);
+          existingIds.add(lc.id);
+        }
+      }
+    }
+  } catch (_) {}
+
+  // If no challenges found in Firestore or cache, provide curated templates
+  if (list.length === 0) {
+    list = CURATED_CHALLENGE_TEMPLATES.map((t, idx) => ({
+      ...t,
+      id: `template_${idx}`,
+      createdAt: null as any,
+      updatedAt: null as any,
+    }));
+  }
+
+  // Enrich with joined status if user ID provided
+  if (currentUserId) {
+    list = await Promise.all(
+      list.map(async (c) => {
+        const joined = await checkIsUserJoined(c.id, currentUserId);
+        return { ...c, isJoined: joined };
+      })
+    );
+  }
+
+  // 1. Filter by Category
+  if (category && category !== 'All') {
+    list = list.filter((c) => c.category === category);
+  }
+
+  // 2. Filter by Search Query
+  if (searchQuery && searchQuery.trim().length > 0) {
+    const qLower = searchQuery.trim().toLowerCase();
+    list = list.filter(
+      (c) =>
+        c.title.toLowerCase().includes(qLower) ||
+        c.category.toLowerCase().includes(qLower) ||
+        (c.shortDescription && c.shortDescription.toLowerCase().includes(qLower)) ||
+        c.description.toLowerCase().includes(qLower)
+    );
+  }
+
+  // 3. Sorting
+  switch (sortBy) {
+    case 'popular':
+      list.sort((a, b) => b.participantsCount - a.participantsCount);
+      break;
+    case 'recent':
+      list.sort((a, b) => {
+        const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+        const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        return bTime - aTime;
+      });
+      break;
+    case 'shortest':
+      list.sort((a, b) => (a.durationDays || 30) - (b.durationDays || 30));
+      break;
+    case 'longest':
+      list.sort((a, b) => (b.durationDays || 30) - (a.durationDays || 30));
+      break;
+  }
+
+  return list;
 }
 
 export async function getChallengeById(challengeId: string): Promise<Challenge | null> {
@@ -564,7 +587,7 @@ export async function createCommunityChallenge(
     dailyActivities: formattedActivities,
     rules: (input.rules || []).filter((r) => r && r.trim().length > 0),
     visibility: input.visibility || 'public',
-    status: 'Active',
+    status: 'Active' as const,
     participantCount: 1, // Creator automatically joins
     creatorUid: creator.uid,
     creatorName: creator.name || 'Bloom Member',
@@ -595,6 +618,26 @@ export async function createCommunityChallenge(
       JSON.stringify(rawParticipantData, (_, v) => (v === undefined ? null : v))
     );
     await setDoc(participantRef, cleanParticipantData);
+  } catch (_) {}
+
+  // Cache locally in AsyncStorage to guarantee newly created trend stays immediately
+  try {
+    const cachedItem: Challenge = {
+      id: docRef.id,
+      ...rawChallengeData,
+      status: 'Active',
+      participantsCount: 1,
+      participantsText: '1 joined',
+      isJoined: true,
+      isPopular: false,
+      isTrending: true,
+      createdAt: new Date() as any,
+      updatedAt: new Date() as any,
+    };
+    const currentCached = await AsyncStorage.getItem('@bloom_community_challenges');
+    const list = currentCached ? JSON.parse(currentCached) : [];
+    const updated = [cachedItem, ...list.filter((c: any) => c.id !== docRef.id)];
+    await AsyncStorage.setItem('@bloom_community_challenges', JSON.stringify(updated));
   } catch (_) {}
 
   return docRef.id;

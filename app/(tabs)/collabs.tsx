@@ -24,6 +24,7 @@ import { CreatePostModal } from '../../components/collabs/CreatePostModal';
 import { CommentsModal } from '../../components/collabs/CommentsModal';
 
 // Firebase & Auth Services
+import { auth } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import {
   getPublicChallenges,
@@ -164,97 +165,98 @@ export default function CollabsScreen() {
   // --------------------------------------------------------------------------
   useEffect(() => {
     let isMounted = true;
-    if (!user?.uid) return;
-    const currentUid = user.uid;
+    const currentUid = user?.uid || auth.currentUser?.uid || currentUser.id || 'bloom_guest';
 
     async function loadSocialData() {
       try {
-        // 1. Load friends from Firestore
-        const firestoreFriends = await getUserFriends(currentUid);
-        if (isMounted) {
-          if (firestoreFriends.length > 0) {
-            const mappedFriends: UserProfile[] = firestoreFriends.map(f => ({
-              id: f.friendUid,
-              name: f.name || 'Bloom Member',
-              handle: f.handle?.startsWith('@') ? f.handle : `@${f.handle || 'member'}`,
-              avatar: f.avatar || '',
-              initials: (f.name || 'BM')
+        if (user?.uid) {
+          // 1. Load friends from Firestore
+          const firestoreFriends = await getUserFriends(currentUid);
+          if (isMounted) {
+            if (firestoreFriends.length > 0) {
+              const mappedFriends: UserProfile[] = firestoreFriends.map(f => ({
+                id: f.friendUid,
+                name: f.name || 'Bloom Member',
+                handle: f.handle?.startsWith('@') ? f.handle : `@${f.handle || 'member'}`,
+                avatar: f.avatar || '',
+                initials: (f.name || 'BM')
+                  .split(' ')
+                  .map(p => p[0])
+                  .join('')
+                  .toUpperCase()
+                  .slice(0, 2),
+                bio: f.bio || 'Bloom circle friend 🌱',
+                streak: 1,
+                challengesJoined: 0,
+                postsCount: 0,
+                friendsCount: 0,
+                isOnline: true,
+                isFriend: true,
+                friendshipStatus: 'friends',
+                badges: [],
+              }));
+              setFriends(mappedFriends);
+            } else {
+              setFriends([]);
+            }
+          }
+
+          // 2. Load incoming friend requests from Firestore
+          const firestoreRequests = await getIncomingFriendRequests(currentUid);
+          if (isMounted) {
+            const mappedRequests: UserProfile[] = firestoreRequests.map(r => ({
+              id: r.id,
+              name: r.senderName || 'Bloom Member',
+              handle: r.senderUsername?.startsWith('@') ? r.senderUsername : `@${r.senderUsername || 'member'}`,
+              avatar: r.senderAvatar || '',
+              initials: (r.senderName || 'BM')
                 .split(' ')
                 .map(p => p[0])
                 .join('')
                 .toUpperCase()
                 .slice(0, 2),
-              bio: f.bio || 'Bloom circle friend 🌱',
+              bio: r.senderBio || 'Invited you to connect 🌱',
               streak: 1,
               challengesJoined: 0,
               postsCount: 0,
               friendsCount: 0,
-              isOnline: true,
-              isFriend: true,
-              friendshipStatus: 'friends',
+              isOnline: false,
+              isFriend: false,
+              friendshipStatus: 'pending_received',
+              mutualInfo: 'Invited you to connect',
               badges: [],
             }));
-            setFriends(mappedFriends);
-          } else {
-            setFriends([]);
+            setRequests(mappedRequests);
+          }
+
+          // 3. Load outgoing requests to exclude from Discover
+          const sentRequests = await getSentFriendRequests(currentUid);
+          const excludeUids = [
+            ...firestoreFriends.map(f => f.friendUid),
+            ...firestoreRequests.map(r => r.senderUid),
+            ...sentRequests.map(s => s.receiverUid),
+          ];
+
+          // 4. Load Discover Users from Firestore
+          const discoverUsers = await getDiscoverUsers(currentUid, excludeUids);
+          if (isMounted) {
+            setSuggestions(discoverUsers);
+          }
+
+          // 5. Load User Challenges count
+          const count = await getUserJoinedChallengesCount(currentUid);
+          if (isMounted) {
+            setUserChallengesCount(count);
           }
         }
 
-        // 2. Load incoming friend requests from Firestore
-        const firestoreRequests = await getIncomingFriendRequests(currentUid);
-        if (isMounted) {
-          const mappedRequests: UserProfile[] = firestoreRequests.map(r => ({
-            id: r.id,
-            name: r.senderName || 'Bloom Member',
-            handle: r.senderUsername?.startsWith('@') ? r.senderUsername : `@${r.senderUsername || 'member'}`,
-            avatar: r.senderAvatar || '',
-            initials: (r.senderName || 'BM')
-              .split(' ')
-              .map(p => p[0])
-              .join('')
-              .toUpperCase()
-              .slice(0, 2),
-            bio: r.senderBio || 'Invited you to connect 🌱',
-            streak: 1,
-            challengesJoined: 0,
-            postsCount: 0,
-            friendsCount: 0,
-            isOnline: false,
-            isFriend: false,
-            friendshipStatus: 'pending_received',
-            mutualInfo: 'Invited you to connect',
-            badges: [],
-          }));
-          setRequests(mappedRequests);
-        }
-
-        // 3. Load outgoing requests to exclude from Discover
-        const sentRequests = await getSentFriendRequests(currentUid);
-        const excludeUids = [
-          ...firestoreFriends.map(f => f.friendUid),
-          ...firestoreRequests.map(r => r.senderUid),
-          ...sentRequests.map(s => s.receiverUid),
-        ];
-
-        // 4. Load Discover Users from Firestore
-        const discoverUsers = await getDiscoverUsers(currentUid, excludeUids);
-        if (isMounted) {
-          setSuggestions(discoverUsers);
-        }
-
-        // 5. Load User Challenges count
-        const count = await getUserJoinedChallengesCount(currentUid);
-        if (isMounted) {
-          setUserChallengesCount(count);
-        }
-
-        // 6. Load Public Challenges from Firestore (Zero hardcoded numbers)
+        // 6. Load Public Challenges from Firestore (Always loaded for community discovery)
         const publicChallenges = await getPublicChallenges('All', '', 'popular', currentUid);
         if (isMounted) {
           setChallenges(publicChallenges);
         }
 
-        // 7. Load Community Posts from Firestore
+        // 7. Load Community Posts from Firestore (Always loaded for community feed)
         const firestorePosts = await getFirestoreCommunityPosts(currentUid);
         if (isMounted) {
           setPosts(firestorePosts);
@@ -266,7 +268,7 @@ export default function CollabsScreen() {
 
     loadSocialData();
 
-    // 8. Subscribe to Global Chat messages (Live onSnapshot)
+    // 8. Subscribe to Global Chat messages (Live onSnapshot for everyone)
     const unsubscribeChat = subscribeToGlobalChatMessages(currentUid, (msgs) => {
       if (isMounted) {
         setChatMessages(msgs);
@@ -364,10 +366,12 @@ export default function CollabsScreen() {
       audioNote?: { duration: string };
     }
   ) => {
+    const activeUid = user?.uid || auth.currentUser?.uid || currentUser.id || 'guest_' + Date.now().toString(36);
+
     // Optimistic local message insertion for immediate real-time response
     const newMsg: ChatMessage = {
       id: 'chat-' + Date.now(),
-      senderId: user?.uid || 'guest',
+      senderId: activeUid,
       senderName: currentUser.name || 'Bloom Member',
       senderHandle: currentUser.handle || '@bloom',
       senderInitials: currentInitials,
@@ -383,14 +387,9 @@ export default function CollabsScreen() {
 
     setChatMessages((prev) => [...prev, newMsg]);
 
-    if (!user?.uid) {
-      showToast('Message posted! (Guest Mode)');
-      return;
-    }
-
     try {
       await sendFirestoreChatMessage({
-        senderId: user.uid,
+        senderId: activeUid,
         senderName: currentUser.name,
         senderHandle: currentUser.handle,
         text,
@@ -401,9 +400,9 @@ export default function CollabsScreen() {
       });
     } catch (err: any) {
       console.warn('[Collabs] Error sending chat message:', err);
-      showToast('Message posted locally (offline)');
+      showToast('Message posted locally');
     }
-  }, [currentUser, user?.uid, showToast]);
+  }, [currentUser, user?.uid, currentInitials, showToast]);
 
   const handleClearChat = useCallback(() => {
     setChatMessages([]);
@@ -552,10 +551,7 @@ export default function CollabsScreen() {
       likesVisible: boolean = true,
       commentsEnabled: boolean = true
     ) => {
-      if (!user?.uid) {
-        showToast('Please sign in to share reflections');
-        return;
-      }
+      const activeUid = user?.uid || auth.currentUser?.uid || currentUser.id || 'guest_' + Date.now().toString(36);
 
       let uploadedImageUrl: string | undefined = undefined;
       let storagePath: string | undefined = undefined;
@@ -566,29 +562,39 @@ export default function CollabsScreen() {
           uploadedImageUrl = imageUri;
         } else {
           showToast('Uploading reflection image... 📷');
-          const uploadRes = await uploadCommunityImage(imageUri, user.uid);
-          uploadedImageUrl = uploadRes.downloadUrl;
-          storagePath = uploadRes.storagePath;
+          try {
+            const uploadRes = await uploadCommunityImage(imageUri, activeUid);
+            uploadedImageUrl = uploadRes.downloadUrl;
+            storagePath = uploadRes.storagePath;
+          } catch (e) {
+            console.warn('[Collabs] Photo upload error, using local URI:', e);
+            uploadedImageUrl = imageUri;
+          }
         }
       }
 
-      const docId = await createFirestorePost({
-        userId: user.uid,
-        userName: currentUser.name,
-        userHandle: currentUser.handle,
-        userAvatar: currentUser.avatar,
-        category,
-        content,
-        image: uploadedImageUrl,
-        imagePath: storagePath,
-        isPrivate,
-        likesVisible,
-        commentsEnabled,
-      });
+      let docId = 'post_' + Date.now();
+      try {
+        docId = await createFirestorePost({
+          userId: activeUid,
+          userName: currentUser.name,
+          userHandle: currentUser.handle,
+          userAvatar: currentUser.avatar,
+          category,
+          content,
+          image: uploadedImageUrl,
+          imagePath: storagePath,
+          isPrivate,
+          likesVisible,
+          commentsEnabled,
+        });
+      } catch (err) {
+        console.warn('[Collabs] Error creating post in Firestore:', err);
+      }
 
       const newPost: CommunityPost = {
         id: docId,
-        userId: user.uid,
+        userId: activeUid,
         userName: currentUser.name,
         userHandle: currentUser.handle,
         userAvatar: currentUser.avatar,
