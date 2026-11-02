@@ -37,11 +37,15 @@ import {
   FeatureDetailModal,
   FeatureDetail,
 } from '../../components/heal-zone/FeatureDetailModal';
+import { MoodChartPoint, MoodType, MoodEntryDocument } from '../../types';
+import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
+import { BackgroundGlow } from '../../components/theme/BackgroundGlow';
 import {
-  initial7DayChart,
-  initial30DayChart,
-} from '../../data/mockData';
-import { MoodChartPoint } from '../../types';
+  addMoodEntry,
+  getUserMoodEntries,
+  addWellnessActivity,
+} from '../../services/firestoreService';
 
 // Types and data for dynamic mood selection
 type MoodName = 'Calm' | 'Happy' | 'Peaceful' | 'Tired' | 'Stressed';
@@ -122,14 +126,102 @@ export default function HealZoneScreen() {
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 24 : 16);
   const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 16 : 20);
 
+  const { user } = useAuth();
+  const { setCurrentMood } = useTheme();
+
   // Dynamic Mood State (null = State A: horizontal selector, string = State B: transformed card)
   const [selectedMood, setSelectedMood] = useState<MoodName | null>(null);
 
-  // Mood chart data state (preserved for 7-day and 30-day line charts)
-  const [sevenDayChart, setSevenDayChart] =
-    useState<MoodChartPoint[]>(initial7DayChart);
-  const [thirtyDayChart, setThirtyDayChart] =
-    useState<MoodChartPoint[]>(initial30DayChart);
+  // Mood chart data state (dynamically computed from real user Firestore entries)
+  const [sevenDayChart, setSevenDayChart] = useState<MoodChartPoint[]>([]);
+  const [thirtyDayChart, setThirtyDayChart] = useState<MoodChartPoint[]>([]);
+
+  // Format real mood records into 7-day and 30-day chart series
+  const formatMoodCharts = useCallback((entries: MoodEntryDocument[]) => {
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const today = new Date();
+    const sevenDays: MoodChartPoint[] = [];
+
+    // Last 7 days
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const dayLabel = i === 0 ? 'Today' : dayNames[d.getDay()];
+
+      const matches = entries.filter((e) => {
+        if (!e.createdAt) return false;
+        const entryDate = (e.createdAt as any)?.toDate
+          ? (e.createdAt as any).toDate()
+          : new Date(e.createdAt);
+        return entryDate.toISOString().split('T')[0] === dateStr;
+      });
+
+      if (matches.length > 0) {
+        const avgScore = matches.reduce((sum, m) => sum + (m.score || 3.0), 0) / matches.length;
+        const latest = matches[0];
+        sevenDays.push({
+          label: dayLabel,
+          score: parseFloat(avgScore.toFixed(1)),
+          mood: latest.mood,
+          emoji: latest.emoji,
+        });
+      }
+    }
+
+    // Last 30 days grouped in 4 weekly buckets
+    const thirtyDays: MoodChartPoint[] = [];
+    const nowMs = today.getTime();
+    const weekMs = 7 * 86400000;
+    const buckets = [
+      { label: 'W1', startMs: nowMs - 4 * weekMs, endMs: nowMs - 3 * weekMs },
+      { label: 'W2', startMs: nowMs - 3 * weekMs, endMs: nowMs - 2 * weekMs },
+      { label: 'W3', startMs: nowMs - 2 * weekMs, endMs: nowMs - 1 * weekMs },
+      { label: 'W4', startMs: nowMs - 1 * weekMs, endMs: nowMs },
+    ];
+
+    for (const b of buckets) {
+      const inBucket = entries.filter((e) => {
+        if (!e.createdAt) return false;
+        const entryMs = (e.createdAt as any)?.toMillis
+          ? (e.createdAt as any).toMillis()
+          : new Date(e.createdAt).getTime();
+        return entryMs >= b.startMs && entryMs < b.endMs;
+      });
+
+      if (inBucket.length > 0) {
+        const avgScore = inBucket.reduce((sum, m) => sum + (m.score || 3.0), 0) / inBucket.length;
+        const latest = inBucket[0];
+        thirtyDays.push({
+          label: b.label,
+          score: parseFloat(avgScore.toFixed(1)),
+          mood: latest.mood,
+          emoji: latest.emoji,
+        });
+      }
+    }
+
+    return { sevenDays, thirtyDays };
+  }, []);
+
+  const loadUserMoods = useCallback(async () => {
+    if (!user?.uid) return;
+    try {
+      const entries = await getUserMoodEntries(user.uid, 60);
+      const { sevenDays, thirtyDays } = formatMoodCharts(entries);
+      setSevenDayChart(sevenDays);
+      setThirtyDayChart(thirtyDays);
+      if (entries.length > 0) {
+        setSelectedMood(entries[0].mood as MoodName);
+      }
+    } catch (err) {
+      console.warn('[HealZone] Error loading real mood entries:', err);
+    }
+  }, [user?.uid, formatMoodCharts]);
+
+  useEffect(() => {
+    loadUserMoods();
+  }, [loadUserMoods]);
 
   // Toast confirmation state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -215,6 +307,14 @@ export default function HealZoneScreen() {
             try {
               player.pause();
             } catch (e) {}
+            if (user?.uid) {
+              addWellnessActivity({
+                userId: user.uid,
+                activityType: 'breathing',
+                title: '1-Minute Box Breathing',
+                durationMinutes: 1,
+              }).catch(() => {});
+            }
             return 0;
           }
           return prev - 1;
@@ -280,32 +380,38 @@ export default function HealZoneScreen() {
   ).padStart(2, '0')}`;
 
   // Handle Mood selection from horizontal bar
-  const handleSelectMood = useCallback((mood: MoodItem) => {
+  const handleSelectMood = useCallback(async (mood: MoodItem) => {
     setSelectedMood(mood.name);
-
-    // Update 7-day chart's latest reading with the selected mood
-    setSevenDayChart(prev => {
-      const updated = [...prev];
-      if (updated.length > 0) {
-        updated[updated.length - 1] = {
-          ...updated[updated.length - 1],
-          score: mood.score,
-          mood: mood.name,
-          emoji: mood.emoji,
-        };
-      }
-      return updated;
-    });
+    setCurrentMood(mood.name as MoodType);
 
     // Confirmation Toast
     setToastMessage(`Mood logged: ${mood.emoji} ${mood.name}`);
     setTimeout(() => {
       setToastMessage(null);
     }, 2800);
-  }, []);
+
+    if (user?.uid) {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      try {
+        await addMoodEntry({
+          userId: user.uid,
+          mood: mood.name as MoodType,
+          emoji: mood.emoji,
+          score: mood.score,
+          date: dateStr,
+          time: timeStr,
+        });
+        loadUserMoods();
+      } catch (err) {
+        console.warn('[HealZone] Error saving mood to Firestore:', err);
+      }
+    }
+  }, [user?.uid, setCurrentMood, loadUserMoods]);
 
   return (
-    <View style={styles.screen}>
+    <BackgroundGlow style={styles.screen}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[styles.scrollContent, { paddingTop: topPadding }]}
@@ -706,14 +812,14 @@ export default function HealZoneScreen() {
         feature={selectedFeature}
         onClose={() => setSelectedFeature(null)}
       />
-    </View>
+    </BackgroundGlow>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: 'transparent',
   },
   scrollView: {
     flex: 1,

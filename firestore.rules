@@ -26,6 +26,18 @@ service cloud.firestore {
       allow create: if isOwner(userId) && request.resource.data.uid == userId;
       allow update: if isOwner(userId) && (!('uid' in request.resource.data) || request.resource.data.uid == userId);
       allow delete: if isOwner(userId);
+
+      // Subcollections under users/{userId} for strict UID-scoped isolation
+      match /aiConversations/{conversationId} {
+        allow read, write: if isOwner(userId);
+        match /messages/{messageId} {
+          allow read, write: if isOwner(userId);
+        }
+      }
+
+      match /wellnessReports/{reportId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // ==========================================
@@ -157,7 +169,7 @@ service cloud.firestore {
                     && isValidString(request.resource.data.content, 1, 2000);
       allow update: if isAuthenticated() && (
         resource.data.authorUid == request.auth.uid ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedByUids', 'likesCount', 'commentsCount'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedByUids', 'likesCount', 'commentsCount', 'comments', 'updatedAt'])
       );
       allow delete: if isAuthenticated() && resource.data.authorUid == request.auth.uid;
     }
@@ -170,6 +182,11 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && resource.data.authorUid == request.auth.uid;
     }
 
+    match /postReports/{reportId} {
+      allow read: if false;
+      allow create: if isAuthenticated() && request.resource.data.reporterUid == request.auth.uid;
+    }
+
     // ==========================================
     // 9. Community Live Chat & Direct Messages
     // ==========================================
@@ -180,7 +197,7 @@ service cloud.firestore {
                     && isValidString(request.resource.data.text, 1, 2000);
       allow update: if isAuthenticated() && (
         resource.data.authorUid == request.auth.uid ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions', 'pollData'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions', 'userReactions', 'pollData'])
       );
       allow delete: if isAuthenticated() && resource.data.authorUid == request.auth.uid;
     }
@@ -233,6 +250,78 @@ service cloud.firestore {
     match /notifications/{notificationId} {
       allow read, update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
       allow create: if isAuthenticated();
+    }
+  
+    // ==========================================
+    // 12. Assignments (Private to Owner)
+    // ==========================================
+    match /assignments/{assignmentId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // ==========================================
+    // 13. Mindful Documents (Private to Owner)
+    // ==========================================
+    match /documents/{docId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // ==========================================
+    // 14. Bursted Thoughts (Heal Bubble - Private to Owner)
+    // ==========================================
+    match /burstedThoughts/{thoughtId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // ==========================================
+    // 15. Sleep Logs (Private to Owner)
+    // ==========================================
+    match /sleepLogs/{logId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // ==========================================
+    // 16. Stress Logs (Private to Owner)
+    // ==========================================
+    match /stressLogs/{logId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // ==========================================
+    // 17. Emergency Contacts (Private to Owner)
+    // ==========================================
+    match /emergencyContacts/{contactId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // ==========================================
+    // 18. User Music Playlists (Private to Owner)
+    // ==========================================
+    match /userPlaylists/{playlistId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // ==========================================
+    // 19. Wellness Reports & Archives (Private to Owner)
+    // ==========================================
+    match /wellnessReports/{reportId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
   }
 }

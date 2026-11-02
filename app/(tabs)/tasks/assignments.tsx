@@ -29,6 +29,11 @@ import { Colors } from '../../../constants/colors';
 import { Typography } from '../../../constants/typography';
 import { Spacing, BorderRadius } from '../../../constants/spacing';
 import { Shadows } from '../../../constants/shadows';
+import {
+  getBackendAssignments,
+  saveBackendAssignment,
+  toggleBackendAssignmentStatus,
+} from '../../../services/bloomBackend';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -101,7 +106,23 @@ export default function AssignmentsScreen() {
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 20 : 16);
 
-  const [assignments, setAssignments] = useState<AssignmentItem[]>(INITIAL_ASSIGNMENTS);
+  const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
+
+  useEffect(() => {
+    getBackendAssignments().then((list) => {
+      const mapped: AssignmentItem[] = list.map((a) => ({
+        id: a.id,
+        courseCode: a.course || 'Course',
+        courseColor: a.courseColor || '#789B83',
+        title: a.title,
+        description: a.description || '',
+        dueDateLabel: a.dueDate ? `Due ${a.dueDate}` : 'Upcoming',
+        estimatedHours: a.aiStudyPlan ? `~${Math.round(a.aiStudyPlan.estimatedTotalMinutes / 60)} hrs needed` : '~2 hrs needed',
+        status: a.status === 'submitted' ? 'completed' : 'pending',
+      }));
+      setAssignments(mapped);
+    });
+  }, []);
   const [filter, setFilter] = useState<'pending' | 'completed'>('pending');
 
   const STORAGE_KEY = '@bloom_assignments_list';

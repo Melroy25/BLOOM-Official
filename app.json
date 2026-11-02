@@ -54,7 +54,9 @@
           "androidCollapsedTitle": "Bloom Reminder"
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-sharing",
+      "expo-font"
     ]
   }
 }

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Wind, Sparkles, BookOpen, Target, ArrowRight } from 'lucide-react-native';
 import { Spacing, BorderRadius } from '../../constants/spacing';
 import { Shadows } from '../../constants/shadows';
+import { FontFamily } from '../../constants/typography';
 import { useTheme } from '../../context/ThemeContext';
 
 interface QuickAccessSectionProps {
@@ -154,11 +155,13 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   sectionTitle: {
+    fontFamily: FontFamily.sansBold,
     fontSize: 18,
     fontWeight: '700',
     letterSpacing: -0.3,
   },
   sectionSubtitle: {
+    fontFamily: FontFamily.sansRegular,
     fontSize: 13,
     fontWeight: '400',
   },
@@ -193,11 +196,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   tileTitle: {
+    fontFamily: FontFamily.sansBold,
     fontSize: 15,
     fontWeight: '700',
     letterSpacing: -0.2,
   },
   tileDescription: {
+    fontFamily: FontFamily.sansRegular,
     fontSize: 11,
     lineHeight: 15,
   },

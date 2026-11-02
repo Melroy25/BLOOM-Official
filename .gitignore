@@ -43,3 +43,9 @@ yarn-error.*
 .env
 .env.*
 !.env.example
+
+# Local secrets
+.env
+.env.*
+!.env.example
+cloudflare-worker/.dev.vars

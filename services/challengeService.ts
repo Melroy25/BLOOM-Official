@@ -327,50 +327,59 @@ export function getTodayDateString(): string {
 export async function getPublicChallenges(
   category?: ChallengeCategory | 'All',
   searchQuery?: string,
-  sortBy: 'popular' | 'recent' | 'shortest' | 'longest' = 'popular'
+  sortBy: 'popular' | 'recent' | 'shortest' | 'longest' = 'popular',
+  currentUserId?: string
 ): Promise<Challenge[]> {
   try {
     const colRef = collection(db, 'challenges');
     const q = query(colRef, where('visibility', '==', 'public'));
     const snap = await getDocs(q);
 
-    let list: Challenge[] = [];
-
     if (snap.empty) {
-      // First boot: Seed templates to Firestore so documents have real IDs
-      list = await seedInitialChallenges();
-    } else {
-      list = snap.docs.map((docSnap) => {
-        const d = docSnap.data();
-        return {
-          id: docSnap.id,
-          title: d.title || 'Untitled Challenge',
-          shortDescription: d.shortDescription || d.description || '',
-          description: d.description || '',
-          category: d.category || 'Productivity',
-          categoryTag: d.categoryTag || d.category || 'Challenge',
-          coverImageUrl: d.coverImageUrl || '',
-          duration: d.duration || `${d.durationDays || 30} Days`,
-          durationDays: d.durationDays || 30,
-          participantsCount: d.participantCount || d.participantsCount || 0,
-          participantsText: `${(d.participantCount || d.participantsCount || 0).toLocaleString()} joined`,
-          isJoined: false,
-          isPopular: d.isPopular || (d.participantCount || 0) >= 1500,
-          isTrending: d.isTrending ?? true,
-          creatorUid: d.creatorUid || '',
-          creatorName: d.creatorName || 'Bloom Member',
-          creatorAvatar: d.creatorAvatar || '',
-          visibility: d.visibility || 'public',
-          status: d.status || 'Active',
-          startDate: d.startDate || getTodayDateString(),
-          endDate: d.endDate || '',
-          dailyActivities: d.dailyActivities || [],
-          rules: d.rules || [],
-          gradientColors: d.gradientColors || ['#789B83', '#365B45'],
-          createdAt: d.createdAt,
-          updatedAt: d.updatedAt,
-        };
-      });
+      return [];
+    }
+
+    let list: Challenge[] = snap.docs.map((docSnap) => {
+      const d = docSnap.data();
+      const count = typeof d.participantCount === 'number' ? d.participantCount : (d.participantsCount || 0);
+      return {
+        id: docSnap.id,
+        title: d.title || 'Untitled Challenge',
+        shortDescription: d.shortDescription || d.description || '',
+        description: d.description || '',
+        category: d.category || 'Productivity',
+        categoryTag: d.categoryTag || d.category || 'Challenge',
+        coverImageUrl: d.coverImageUrl || '',
+        duration: d.duration || `${d.durationDays || 30} Days`,
+        durationDays: d.durationDays || 30,
+        participantsCount: count,
+        participantsText: count === 1 ? '1 joined' : `${count.toLocaleString()} joined`,
+        isJoined: false,
+        isPopular: d.isPopular ?? (count >= 10),
+        isTrending: d.isTrending ?? (count >= 3),
+        creatorUid: d.creatorUid || '',
+        creatorName: d.creatorName || 'Bloom Member',
+        creatorAvatar: d.creatorAvatar || '',
+        visibility: d.visibility || 'public',
+        status: d.status || 'Active',
+        startDate: d.startDate || getTodayDateString(),
+        endDate: d.endDate || '',
+        dailyActivities: d.dailyActivities || [],
+        rules: d.rules || [],
+        gradientColors: d.gradientColors || ['#789B83', '#365B45'],
+        createdAt: d.createdAt,
+        updatedAt: d.updatedAt,
+      };
+    });
+
+    // Enrich with joined status if user ID provided
+    if (currentUserId) {
+      list = await Promise.all(
+        list.map(async (c) => {
+          const joined = await checkIsUserJoined(c.id, currentUserId);
+          return { ...c, isJoined: joined };
+        })
+      );
     }
 
     // 1. Filter by Category
@@ -415,49 +424,10 @@ export async function getPublicChallenges(
     if (error?.code !== 'permission-denied') {
       console.warn('[ChallengeService] Error fetching challenges:', error?.message || error);
     }
-    // Safe client-side fallback if network offline
-    return CURATED_CHALLENGE_TEMPLATES.map((t, idx) => ({
-      ...t,
-      id: `template_${idx}`,
-      isJoined: false,
-    }));
+    return [];
   }
 }
 
-/**
- * Seeds the initial challenge templates into Firestore with real IDs.
- */
-async function seedInitialChallenges(): Promise<Challenge[]> {
-  const seeded: Challenge[] = [];
-  const colRef = collection(db, 'challenges');
-
-  for (const template of CURATED_CHALLENGE_TEMPLATES) {
-    try {
-      const docRef = await addDoc(colRef, {
-        ...template,
-        participantCount: template.participantsCount,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      seeded.push({
-        ...template,
-        id: docRef.id,
-      });
-    } catch {
-      // If permission denies write or offline, keep local object
-      seeded.push({
-        ...template,
-        id: `template_${Date.now()}_${Math.random()}`,
-      });
-    }
-  }
-
-  return seeded;
-}
-
-/**
- * Fetches a single challenge document by its unique Firestore ID.
- */
 export async function getChallengeById(challengeId: string): Promise<Challenge | null> {
   try {
     const docRef = doc(db, 'challenges', challengeId);

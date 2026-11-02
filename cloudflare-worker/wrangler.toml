@@ -1,0 +1,9 @@
+name = "bloom-ai-worker"
+main = "worker.js"
+compatibility_date = "2024-04-01"
+
+[vars]
+FIREBASE_API_KEY = "AIzaSyBtyWtVEiOyLmX8HO719OSyhYQzYl3bBBI"
+
+# Set GEMINI_API_KEY via Wrangler secrets:
+#   npx wrangler secret put GEMINI_API_KEY

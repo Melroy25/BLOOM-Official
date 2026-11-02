@@ -99,13 +99,21 @@ export default function SOSScreen() {
     }
   };
 
+  const handleGoBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
+
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       {/* Top Header */}
       <View style={[styles.header, { paddingTop: topPadding }]}>
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: colors.white, borderColor: colors.border }]}
-          onPress={() => router.back()}
+          onPress={handleGoBack}
           activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel="Go back"

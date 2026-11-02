@@ -6,6 +6,18 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+  collection,
+  doc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { db, auth } from './firebase';
+import {
   Assignment,
   StudentTask,
   HabitItem,
@@ -41,252 +53,17 @@ export function getRelativeDate(offsetDays: number): string {
   return `${year}-${month}-${day}`;
 }
 
-// ─── SEED DATA (Pre-populated so judges never see a blank screen) ───────────────
-
-const SEED_ASSIGNMENTS: Assignment[] = [
-  {
-    id: 'asg-1',
-    title: 'Graph Traversal & Shortest Path Problem Set',
-    course: 'CS 301: Algorithms & Data Structures',
-    courseColor: '#6AAF7D',
-    dueDate: getRelativeDate(0), // Today
-    dueTime: '23:59',
-    priority: 'high',
-    status: 'pending',
-    source: 'google_classroom',
-    points: 100,
-    description: 'Implement Dijkstra & A* search algorithms with execution runtime benchmarks.',
-    classroomLink: 'https://classroom.google.com/c/cs301-hw',
-    reminderActive: true,
-    createdAt: new Date().toISOString(),
-    aiStudyPlan: {
-      summary: 'High-yield 2-hour sprint breakdown for algorithms problem set.',
-      estimatedTotalMinutes: 120,
-      recommendedBreakdown: [
-        { title: 'Step 1: Set up adjacency list & priority queue skeleton', duration: '25m', done: true },
-        { title: 'Step 2: Implement Dijkstra distance relaxation loop', duration: '45m', done: false },
-        { title: 'Step 3: Benchmark on graph dataset with 10k nodes', duration: '30m', done: false },
-        { title: 'Step 4: Generate plot & upload PDF to Google Classroom', duration: '20m', done: false },
-      ],
-    },
-  },
-  {
-    id: 'asg-2',
-    title: 'Cognitive Memory Experiment Lab Report',
-    course: 'PSY 210: Cognitive Neuroscience',
-    courseColor: '#7AA7C7',
-    dueDate: getRelativeDate(1), // Tomorrow
-    dueTime: '17:00',
-    priority: 'high',
-    status: 'pending',
-    source: 'google_classroom',
-    points: 50,
-    description: 'Analyze Stroop effect reaction times and write discussion on attentional filtering.',
-    classroomLink: 'https://classroom.google.com/c/psy210-lab',
-    reminderActive: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'asg-3',
-    title: 'Eigenvalues & SVD Compression Paper',
-    course: 'MATH 240: Linear Algebra',
-    courseColor: '#E8B86D',
-    dueDate: getRelativeDate(3),
-    dueTime: '23:59',
-    priority: 'medium',
-    status: 'pending',
-    source: 'google_classroom',
-    points: 75,
-    description: 'Matrix singular value decomposition applied to image compression.',
-    reminderActive: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'asg-4',
-    title: 'Literature Review: Circadian Rhythm & Screen Exposure',
-    course: 'ENG 105: Technical Communication',
-    courseColor: '#A8C5B2',
-    dueDate: getRelativeDate(5),
-    dueTime: '12:00',
-    priority: 'low',
-    status: 'submitted',
-    source: 'manual',
-    points: 40,
-    description: 'Summary of peer-reviewed journals on blue light exposure and adolescent sleep architecture.',
-    reminderActive: false,
-    createdAt: new Date().toISOString(),
-  },
-];
-
-const SEED_TASKS: StudentTask[] = [
-  {
-    id: 'st-1',
-    title: 'Review Lecture 12: Binary Search Trees & AVL Rotations',
-    period: 'daily',
-    category: 'Study',
-    priority: 'high',
-    completed: false,
-    timeEstimateMinutes: 45,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'st-2',
-    title: 'Solve 3 Practice Probability Distribution Problems',
-    period: 'daily',
-    category: 'Exam Prep',
-    priority: 'medium',
-    completed: true,
-    timeEstimateMinutes: 30,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'st-3',
-    title: 'Read Chapter 4 of Cognitive Neuroscience Textbook',
-    period: 'weekly',
-    category: 'Study',
-    priority: 'medium',
-    completed: false,
-    timeEstimateMinutes: 60,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'st-4',
-    title: 'Group Study Session: Linear Algebra Proofs',
-    period: 'weekly',
-    category: 'Study',
-    priority: 'high',
-    completed: false,
-    timeEstimateMinutes: 90,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'st-5',
-    title: 'Download and print lab safety protocol',
-    period: 'daily',
-    category: 'Routine',
-    priority: 'low',
-    completed: true,
-    timeEstimateMinutes: 15,
-    createdAt: new Date().toISOString(),
-  },
-];
-
-const SEED_HABITS: HabitItem[] = [
-  {
-    id: 'h-1',
-    name: 'Morning Hydration (500ml water)',
-    target: 'Every morning before 9 AM',
-    streakDays: 6,
-    completedToday: true,
-    history: [true, true, true, true, true, true, true],
-    icon: 'droplet',
-  },
-  {
-    id: 'h-2',
-    name: '30m Distraction-Free Deep Study',
-    target: 'Daily during peak focus hours',
-    streakDays: 4,
-    completedToday: false,
-    history: [true, true, true, true, false, true, false],
-    icon: 'book',
-  },
-  {
-    id: 'h-3',
-    name: 'Screen-Free 45m Before Bedtime',
-    target: 'Protects melatonin & REM sleep',
-    streakDays: 3,
-    completedToday: false,
-    history: [false, true, true, true, false, true, false],
-    icon: 'moon',
-  },
-  {
-    id: 'h-4',
-    name: '15m Morning Outdoor Sunlight',
-    target: 'Synchronizes circadian clock',
-    streakDays: 7,
-    completedToday: true,
-    history: [true, true, true, true, true, true, true],
-    icon: 'sun',
-  },
-  {
-    id: 'h-5',
-    name: 'Mindful 4-7-8 Breathing in Heal Zone',
-    target: 'Lowers academic cortisol',
-    streakDays: 5,
-    completedToday: false,
-    history: [true, true, true, true, true, false, false],
-    icon: 'heart',
-  },
-];
-
-const SEED_SLEEP: SleepState = {
-  bedtimeTarget: '23:00',
-  wakeTarget: '07:00',
-  actualSleepHours: 7.4,
-  sleepEfficiencyPercent: 86,
-  remMinutes: 98,
-  deepMinutes: 84,
-  lightMinutes: 262,
-  circadianConsistencyScore: 84,
-  healthConnectAuthorized: true,
-};
-
-const SEED_STRESS: StressState = {
-  score: 38,
-  level: 'Low (Calm)',
-  estimatedHrvMs: 54,
-  lastAssessedTime: '10:30 AM Today',
-  pss10Answers: [1, 2, 1, 2],
-};
-
-const SEED_CONTACTS: EmergencyContact[] = [
-  { id: 'ec-1', name: 'Campus Safety & Police', relation: 'Security Desk', phone: '1-800-555-SAFE', isPrimary: true },
-  { id: 'ec-2', name: 'Mom', relation: 'Family', phone: '+1-555-0199', isPrimary: true },
-  { id: 'ec-3', name: 'Alex (Roommate)', relation: 'Dorm Mate', phone: '+1-555-0144', isPrimary: false },
-];
-
-const SEED_WATCHES: SmartwatchDevice[] = [
-  {
-    id: 'w-1',
-    name: 'Pixel Watch 2',
-    brand: 'Wear OS',
-    batteryPercent: 84,
-    connected: true,
-    lastSyncTime: 'Just now',
-    sensorsEnabled: {
-      ppgHeartRate: true,
-      hrvTelemetry: true,
-      sleepSpO2: true,
-      skinTemperature: false,
-    },
-  },
-  {
-    id: 'w-2',
-    name: 'Galaxy Watch 6 Classic',
-    brand: 'Galaxy Watch',
-    batteryPercent: 92,
-    connected: false,
-    lastSyncTime: 'Yesterday',
-    sensorsEnabled: {
-      ppgHeartRate: true,
-      hrvTelemetry: true,
-      sleepSpO2: false,
-      skinTemperature: false,
-    },
-  },
-];
-
-const SEED_HEALTH_CONNECT: HealthConnectPermissions = {
-  isAppInstalled: true,
-  isConnected: true,
-  readSleep: true,
-  readSteps: true,
-  readHeartRate: true,
+const DEFAULT_HEALTH_CONNECT: HealthConnectPermissions = {
+  isAppInstalled: false,
+  isConnected: false,
+  readSleep: false,
+  readSteps: false,
+  readHeartRate: false,
   readExercise: false,
-  lastSyncTimestamp: 'Synced 5m ago',
+  lastSyncTimestamp: 'Not synced',
 };
 
-const SEED_WIDGET: WidgetSettings = {
+const DEFAULT_WIDGET: WidgetSettings = {
   theme: 'sage',
   showLiveScreenTime: true,
   showNextAssignment: true,
@@ -296,38 +73,71 @@ const SEED_WIDGET: WidgetSettings = {
 
 // ─── BACKEND DATABASE OPERATIONS ───────────────────────────────────────────────
 
-// 1. Assignments
+// 1. Assignments (Backed by Firestore assignments collection)
 export async function getBackendAssignments(): Promise<Assignment[]> {
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      const colRef = collection(db, 'assignments');
+      const q = query(colRef, where('userId', '==', uid));
+      const snap = await getDocs(q);
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      await AsyncStorage.setItem(STORAGE_KEYS.ASSIGNMENTS, JSON.stringify(list));
+      return list;
+    } catch (err: any) {
+      if (err?.code !== 'permission-denied') {
+        console.warn('[bloomBackend] Error loading Firestore assignments:', err?.message || err);
+      }
+    }
+  }
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.ASSIGNMENTS);
-    if (!raw) {
-      await AsyncStorage.setItem(STORAGE_KEYS.ASSIGNMENTS, JSON.stringify(SEED_ASSIGNMENTS));
-      return SEED_ASSIGNMENTS;
-    }
-    return JSON.parse(raw);
-  } catch {
-    return SEED_ASSIGNMENTS;
-  }
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [];
 }
 
 export async function saveBackendAssignment(assignment: Assignment): Promise<Assignment[]> {
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      const docRef = doc(db, 'assignments', assignment.id);
+      await setDoc(docRef, {
+        ...assignment,
+        userId: uid,
+        updatedAt: serverTimestamp(),
+        createdAt: assignment.createdAt || new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn('[bloomBackend] Error saving assignment to Firestore:', err);
+    }
+  }
   const list = await getBackendAssignments();
   const idx = list.findIndex((a) => a.id === assignment.id);
-  let updated: Assignment[];
-  if (idx >= 0) {
-    updated = list.map((a) => (a.id === assignment.id ? assignment : a));
-  } else {
-    updated = [assignment, ...list];
-  }
+  const updated = idx >= 0 ? list.map((a) => (a.id === assignment.id ? assignment : a)) : [assignment, ...list];
   await AsyncStorage.setItem(STORAGE_KEYS.ASSIGNMENTS, JSON.stringify(updated));
   return updated;
 }
 
 export async function toggleBackendAssignmentStatus(id: string): Promise<Assignment[]> {
   const list = await getBackendAssignments();
-  const updated = list.map((a) =>
-    a.id === id ? { ...a, status: (a.status === 'submitted' ? 'pending' : 'submitted') as any } : a
-  );
+  let nextStatus: 'pending' | 'submitted' = 'submitted';
+  const updated = list.map((a) => {
+    if (a.id === id) {
+      nextStatus = a.status === 'submitted' ? 'pending' : 'submitted';
+      return { ...a, status: nextStatus };
+    }
+    return a;
+  });
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      const docRef = doc(db, 'assignments', id);
+      await updateDoc(docRef, { status: nextStatus, updatedAt: serverTimestamp() });
+    } catch (err) {
+      console.warn('[bloomBackend] Error updating assignment status in Firestore:', err);
+    }
+  }
   await AsyncStorage.setItem(STORAGE_KEYS.ASSIGNMENTS, JSON.stringify(updated));
   return updated;
 }
@@ -335,34 +145,94 @@ export async function toggleBackendAssignmentStatus(id: string): Promise<Assignm
 export async function deleteBackendAssignment(id: string): Promise<Assignment[]> {
   const list = await getBackendAssignments();
   const updated = list.filter((a) => a.id !== id);
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      await deleteDoc(doc(db, 'assignments', id));
+    } catch (err) {
+      console.warn('[bloomBackend] Error deleting assignment from Firestore:', err);
+    }
+  }
   await AsyncStorage.setItem(STORAGE_KEYS.ASSIGNMENTS, JSON.stringify(updated));
   return updated;
 }
 
-// 2. Student Tasks
+// 2. Student Tasks (Backed by Firestore tasks collection)
 export async function getBackendTasks(): Promise<StudentTask[]> {
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      const colRef = collection(db, 'tasks');
+      const q = query(colRef, where('userId', '==', uid));
+      const snap = await getDocs(q);
+      const list: StudentTask[] = snap.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          title: data.title || '',
+          period: data.period || 'daily',
+          category: data.category || 'Study',
+          priority: data.priority || 'medium',
+          completed: !!data.completed,
+          dueDate: data.dueDate,
+          timeEstimateMinutes: data.timeEstimateMinutes || 30,
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+        };
+      });
+      await AsyncStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(list));
+      return list;
+    } catch (err: any) {
+      if (err?.code !== 'permission-denied') {
+        console.warn('[bloomBackend] Error loading tasks from Firestore:', err?.message || err);
+      }
+    }
+  }
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.TASKS);
-    if (!raw) {
-      await AsyncStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(SEED_TASKS));
-      return SEED_TASKS;
-    }
-    return JSON.parse(raw);
-  } catch {
-    return SEED_TASKS;
-  }
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [];
 }
 
 export async function saveBackendTask(task: StudentTask): Promise<StudentTask[]> {
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      const docRef = doc(db, 'tasks', task.id);
+      await setDoc(docRef, {
+        ...task,
+        userId: uid,
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn('[bloomBackend] Error saving task to Firestore:', err);
+    }
+  }
   const list = await getBackendTasks();
-  const updated = [task, ...list];
+  const updated = [task, ...list.filter((t) => t.id !== task.id)];
   await AsyncStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(updated));
   return updated;
 }
 
 export async function toggleBackendTask(id: string): Promise<StudentTask[]> {
   const list = await getBackendTasks();
-  const updated = list.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t));
+  let nextCompleted = false;
+  const updated = list.map((t) => {
+    if (t.id === id) {
+      nextCompleted = !t.completed;
+      return { ...t, completed: nextCompleted };
+    }
+    return t;
+  });
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      await updateDoc(doc(db, 'tasks', id), { completed: nextCompleted, updatedAt: serverTimestamp() });
+    } catch (err) {
+      console.warn('[bloomBackend] Error toggling task in Firestore:', err);
+    }
+  }
   await AsyncStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(updated));
   return updated;
 }
@@ -370,48 +240,92 @@ export async function toggleBackendTask(id: string): Promise<StudentTask[]> {
 export async function deleteBackendTask(id: string): Promise<StudentTask[]> {
   const list = await getBackendTasks();
   const updated = list.filter((t) => t.id !== id);
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      await deleteDoc(doc(db, 'tasks', id));
+    } catch (err) {
+      console.warn('[bloomBackend] Error deleting task from Firestore:', err);
+    }
+  }
   await AsyncStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(updated));
   return updated;
 }
 
-// 3. Habits
+// 3. Habits (Backed by Firestore habits collection)
 export async function getBackendHabits(): Promise<HabitItem[]> {
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      const colRef = collection(db, 'habits');
+      const q = query(colRef, where('userId', '==', uid));
+      const snap = await getDocs(q);
+      const list: HabitItem[] = snap.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          name: data.name || data.title || '',
+          target: data.target || 'Daily',
+          streakDays: data.streakDays || data.streakCount || 0,
+          completedToday: !!data.completedToday,
+          history: Array.isArray(data.history) ? data.history : [false, false, false, false, false, false, !!data.completedToday],
+          icon: data.icon || 'star',
+        };
+      });
+      await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(list));
+      return list;
+    } catch (err: any) {
+      if (err?.code !== 'permission-denied') {
+        console.warn('[bloomBackend] Error loading habits from Firestore:', err?.message || err);
+      }
+    }
+  }
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.HABITS);
-    if (!raw) {
-      await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(SEED_HABITS));
-      return SEED_HABITS;
-    }
-    return JSON.parse(raw);
-  } catch {
-    return SEED_HABITS;
-  }
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [];
 }
 
 export async function toggleBackendHabit(id: string): Promise<HabitItem[]> {
   const list = await getBackendHabits();
+  let updatedHabit: HabitItem | null = null;
   const updated = list.map((h) => {
     if (h.id === id) {
       const nextCompleted = !h.completedToday;
       const nextStreak = nextCompleted ? h.streakDays + 1 : Math.max(0, h.streakDays - 1);
-      const nextHistory = [...h.history.slice(0, 6), nextCompleted];
-      return {
+      const nextHistory = [...h.history.slice(1), nextCompleted];
+      updatedHabit = {
         ...h,
         completedToday: nextCompleted,
         streakDays: nextStreak,
         history: nextHistory,
       };
+      return updatedHabit;
     }
     return h;
   });
+  const uid = auth.currentUser?.uid;
+  if (uid && updatedHabit) {
+    try {
+      await updateDoc(doc(db, 'habits', id), {
+        completedToday: (updatedHabit as HabitItem).completedToday,
+        streakDays: (updatedHabit as HabitItem).streakDays,
+        history: (updatedHabit as HabitItem).history,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn('[bloomBackend] Error updating habit in Firestore:', err);
+    }
+  }
   await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updated));
   return updated;
 }
 
 export async function addBackendHabit(name: string, target: string, icon: string = 'star'): Promise<HabitItem[]> {
-  const list = await getBackendHabits();
+  const newId = `h-${Date.now()}`;
   const newHabit: HabitItem = {
-    id: `h-${Date.now()}`,
+    id: newId,
     name,
     target,
     streakDays: 1,
@@ -419,89 +333,236 @@ export async function addBackendHabit(name: string, target: string, icon: string
     history: [false, false, false, false, false, false, true],
     icon,
   };
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      await setDoc(doc(db, 'habits', newId), {
+        ...newHabit,
+        userId: uid,
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn('[bloomBackend] Error adding habit to Firestore:', err);
+    }
+  }
+  const list = await getBackendHabits();
   const updated = [newHabit, ...list];
   await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updated));
   return updated;
 }
 
-// 4. Sleep
+// 4. Sleep (Backed by Firestore sleepLogs collection)
 export async function getBackendSleep(): Promise<SleepState> {
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      const colRef = collection(db, 'sleepLogs');
+      const q = query(colRef, where('userId', '==', uid));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const sorted = snap.docs.map((d) => d.data()).sort((a: any, b: any) => {
+          const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+          const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+          return tB - tA;
+        });
+        const latest = sorted[0] as any;
+        const totalMinutes = Math.round((latest.sleepDurationHours || 0) * 60);
+        return {
+          bedtimeTarget: latest.bedtime || '23:00',
+          wakeTarget: latest.wakeTime || '07:00',
+          actualSleepHours: latest.sleepDurationHours || 0,
+          sleepEfficiencyPercent: latest.qualityRating ? latest.qualityRating * 20 : 0,
+          remMinutes: Math.round(totalMinutes * 0.22),
+          deepMinutes: Math.round(totalMinutes * 0.20),
+          lightMinutes: Math.round(totalMinutes * 0.58),
+          circadianConsistencyScore: latest.qualityRating ? latest.qualityRating * 20 : 0,
+          healthConnectAuthorized: false,
+        };
+      }
+    } catch (err: any) {
+      if (err?.code !== 'permission-denied') {
+        console.warn('[bloomBackend] Error loading sleep from Firestore:', err);
+      }
+    }
+  }
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.SLEEP);
-    if (!raw) {
-      await AsyncStorage.setItem(STORAGE_KEYS.SLEEP, JSON.stringify(SEED_SLEEP));
-      return SEED_SLEEP;
-    }
-    return JSON.parse(raw);
-  } catch {
-    return SEED_SLEEP;
-  }
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {
+    bedtimeTarget: '23:00',
+    wakeTarget: '07:00',
+    actualSleepHours: 0,
+    sleepEfficiencyPercent: 0,
+    remMinutes: 0,
+    deepMinutes: 0,
+    lightMinutes: 0,
+    circadianConsistencyScore: 0,
+    healthConnectAuthorized: false,
+  };
 }
 
 export async function updateBackendSleep(update: Partial<SleepState>): Promise<SleepState> {
   const current = await getBackendSleep();
   const merged = { ...current, ...update };
+  const uid = auth.currentUser?.uid;
+  if (uid && update.actualSleepHours) {
+    try {
+      const docRef = doc(collection(db, 'sleepLogs'));
+      await setDoc(docRef, {
+        userId: uid,
+        date: new Date().toISOString().split('T')[0],
+        bedtime: merged.bedtimeTarget,
+        wakeTime: merged.wakeTarget,
+        sleepDurationHours: merged.actualSleepHours,
+        qualityRating: Math.max(1, Math.round(merged.sleepEfficiencyPercent / 20)),
+        source: 'manual',
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn('[bloomBackend] Error saving sleep to Firestore:', err);
+    }
+  }
   await AsyncStorage.setItem(STORAGE_KEYS.SLEEP, JSON.stringify(merged));
   return merged;
 }
 
-// 5. Stress
+// 5. Stress (Backed by Firestore stressLogs collection)
 export async function getBackendStress(): Promise<StressState> {
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      const colRef = collection(db, 'stressLogs');
+      const q = query(colRef, where('userId', '==', uid));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const sorted = snap.docs.map((d) => d.data()).sort((a: any, b: any) => {
+          const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+          const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+          return tB - tA;
+        });
+        const latest = sorted[0] as any;
+        const level = latest.calculatedScore < 35 ? 'Low (Calm)' : latest.calculatedScore < 65 ? 'Moderate' : 'Elevated (Overload)';
+        return {
+          score: latest.calculatedScore || 0,
+          level,
+          estimatedHrvMs: 0,
+          lastAssessedTime: 'Assessed Recently',
+          pss10Answers: latest.answers || [],
+        };
+      }
+    } catch (err: any) {
+      if (err?.code !== 'permission-denied') {
+        console.warn('[bloomBackend] Error loading stress from Firestore:', err);
+      }
+    }
+  }
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.STRESS);
-    if (!raw) {
-      await AsyncStorage.setItem(STORAGE_KEYS.STRESS, JSON.stringify(SEED_STRESS));
-      return SEED_STRESS;
-    }
-    return JSON.parse(raw);
-  } catch {
-    return SEED_STRESS;
-  }
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {
+    score: 0,
+    level: 'Low (Calm)',
+    estimatedHrvMs: 0,
+    lastAssessedTime: 'Not assessed yet',
+    pss10Answers: [],
+  };
 }
 
 export async function updateBackendStress(score: number, pssAnswers?: number[]): Promise<StressState> {
   const level = score < 35 ? 'Low (Calm)' : score < 65 ? 'Moderate' : 'Elevated (Overload)';
-  const hrv = Math.round(75 - score * 0.45); // higher stress = lower HRV
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' Today';
   const updated: StressState = {
     score,
     level,
-    estimatedHrvMs: Math.max(25, hrv),
-    lastAssessedTime: 'Just now',
+    estimatedHrvMs: 0,
+    lastAssessedTime: timeStr,
     pss10Answers: pssAnswers,
   };
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      const docRef = doc(collection(db, 'stressLogs'));
+      await setDoc(docRef, {
+        userId: uid,
+        assessmentType: 'pss-10',
+        answers: pssAnswers || [],
+        calculatedScore: score,
+        stressCategory: score < 35 ? 'low' : score < 65 ? 'moderate' : 'high',
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn('[bloomBackend] Error saving stress to Firestore:', err);
+    }
+  }
   await AsyncStorage.setItem(STORAGE_KEYS.STRESS, JSON.stringify(updated));
   return updated;
 }
 
-// 6. SOS Contacts
+// 6. SOS Contacts (Backed by Firestore emergencyContacts collection)
 export async function getBackendContacts(): Promise<EmergencyContact[]> {
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      const colRef = collection(db, 'emergencyContacts');
+      const q = query(colRef, where('userId', '==', uid));
+      const snap = await getDocs(q);
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      await AsyncStorage.setItem(STORAGE_KEYS.SOS_CONTACTS, JSON.stringify(list));
+      return list;
+    } catch (err: any) {
+      if (err?.code !== 'permission-denied') {
+        console.warn('[bloomBackend] Error loading contacts from Firestore:', err);
+      }
+    }
+  }
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.SOS_CONTACTS);
-    if (!raw) {
-      await AsyncStorage.setItem(STORAGE_KEYS.SOS_CONTACTS, JSON.stringify(SEED_CONTACTS));
-      return SEED_CONTACTS;
-    }
-    return JSON.parse(raw);
-  } catch {
-    return SEED_CONTACTS;
-  }
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [];
 }
 
 export async function addBackendContact(name: string, relation: string, phone: string): Promise<EmergencyContact[]> {
-  const list = await getBackendContacts();
+  const uid = auth.currentUser?.uid;
+  const newId = `ec-${Date.now()}`;
   const newContact: EmergencyContact = {
-    id: `ec-${Date.now()}`,
+    id: newId,
     name,
     relation,
     phone,
     isPrimary: false,
   };
-  const updated = [...list, newContact];
+  if (uid) {
+    try {
+      const docRef = doc(db, 'emergencyContacts', newId);
+      await setDoc(docRef, {
+        ...newContact,
+        userId: uid,
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn('[bloomBackend] Error saving contact to Firestore:', err);
+    }
+  }
+  const list = await getBackendContacts();
+  const updated = [...list.filter((c) => c.id !== newId), newContact];
   await AsyncStorage.setItem(STORAGE_KEYS.SOS_CONTACTS, JSON.stringify(updated));
   return updated;
 }
 
 export async function deleteBackendContact(id: string): Promise<EmergencyContact[]> {
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      const docRef = doc(db, 'emergencyContacts', id);
+      await deleteDoc(docRef);
+    } catch (err) {
+      console.warn('[bloomBackend] Error deleting contact from Firestore:', err);
+    }
+  }
   const list = await getBackendContacts();
   const updated = list.filter((c) => c.id !== id);
   await AsyncStorage.setItem(STORAGE_KEYS.SOS_CONTACTS, JSON.stringify(updated));
@@ -512,14 +573,9 @@ export async function deleteBackendContact(id: string): Promise<EmergencyContact
 export async function getBackendSmartwatches(): Promise<SmartwatchDevice[]> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.SMARTWATCHES);
-    if (!raw) {
-      await AsyncStorage.setItem(STORAGE_KEYS.SMARTWATCHES, JSON.stringify(SEED_WATCHES));
-      return SEED_WATCHES;
-    }
-    return JSON.parse(raw);
-  } catch {
-    return SEED_WATCHES;
-  }
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [];
 }
 
 export async function toggleBackendSmartwatch(id: string): Promise<SmartwatchDevice[]> {
@@ -539,7 +595,7 @@ export async function addBackendSmartwatch(name: string, brand: any): Promise<Sm
     id: `w-${Date.now()}`,
     name,
     brand,
-    batteryPercent: Math.floor(70 + Math.random() * 28),
+    batteryPercent: 100,
     connected: true,
     lastSyncTime: 'Just now',
     sensorsEnabled: { ppgHeartRate: true, hrvTelemetry: true, sleepSpO2: true, skinTemperature: true },
@@ -553,14 +609,9 @@ export async function addBackendSmartwatch(name: string, brand: any): Promise<Sm
 export async function getBackendHealthConnect(): Promise<HealthConnectPermissions> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.HEALTH_CONNECT);
-    if (!raw) {
-      await AsyncStorage.setItem(STORAGE_KEYS.HEALTH_CONNECT, JSON.stringify(SEED_HEALTH_CONNECT));
-      return SEED_HEALTH_CONNECT;
-    }
-    return JSON.parse(raw);
-  } catch {
-    return SEED_HEALTH_CONNECT;
-  }
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return DEFAULT_HEALTH_CONNECT;
 }
 
 export async function updateBackendHealthConnect(update: Partial<HealthConnectPermissions>): Promise<HealthConnectPermissions> {
@@ -574,14 +625,9 @@ export async function updateBackendHealthConnect(update: Partial<HealthConnectPe
 export async function getBackendWidgetConfig(): Promise<WidgetSettings> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.WIDGET_CONFIG);
-    if (!raw) {
-      await AsyncStorage.setItem(STORAGE_KEYS.WIDGET_CONFIG, JSON.stringify(SEED_WIDGET));
-      return SEED_WIDGET;
-    }
-    return JSON.parse(raw);
-  } catch {
-    return SEED_WIDGET;
-  }
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return DEFAULT_WIDGET;
 }
 
 export async function updateBackendWidgetConfig(update: Partial<WidgetSettings>): Promise<WidgetSettings> {
@@ -590,4 +636,3 @@ export async function updateBackendWidgetConfig(update: Partial<WidgetSettings>)
   await AsyncStorage.setItem(STORAGE_KEYS.WIDGET_CONFIG, JSON.stringify(merged));
   return merged;
 }
-

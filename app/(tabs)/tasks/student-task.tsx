@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -32,6 +32,7 @@ import { Colors } from '../../../constants/colors';
 import { Typography } from '../../../constants/typography';
 import { Spacing, BorderRadius } from '../../../constants/spacing';
 import { Shadows } from '../../../constants/shadows';
+import { getBackendTasks, saveBackendTask, toggleBackendTask } from '../../../services/bloomBackend';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -44,67 +45,8 @@ interface TaskItem {
   type: 'daily' | 'weekly';
 }
 
-const INITIAL_DAILY_TASKS: TaskItem[] = [
-  {
-    id: 'dt-1',
-    title: 'Read Bio Chapter 4: Cellular Respiration',
-    courseTag: 'Biology 101',
-    timestamp: '10:30 AM',
-    completed: true,
-    type: 'daily',
-  },
-  {
-    id: 'dt-2',
-    title: 'Calculus problem set #3 derivations',
-    courseTag: 'MATH 204',
-    timestamp: '1:15 PM',
-    completed: true,
-    type: 'daily',
-  },
-  {
-    id: 'dt-3',
-    title: 'Review Psychology flashcards (Memory systems)',
-    courseTag: 'PSYCH 101',
-    timestamp: '3:45 PM',
-    completed: true,
-    type: 'daily',
-  },
-  {
-    id: 'dt-4',
-    title: 'Draft Chemistry titration lab observation summary',
-    courseTag: 'CHEM 220',
-    timestamp: '5:00 PM',
-    completed: false,
-    type: 'daily',
-  },
-];
-
-const INITIAL_WEEKLY_TASKS: TaskItem[] = [
-  {
-    id: 'wt-1',
-    title: 'Complete Algorithms Term Project Phase 1 (Graph traversal)',
-    courseTag: 'CS 301',
-    timestamp: 'Due Friday',
-    completed: false,
-    type: 'weekly',
-  },
-  {
-    id: 'wt-2',
-    title: 'Write Literature Review Draft for Behavioral Psychology',
-    courseTag: 'PSYCH 101',
-    timestamp: 'Due Thursday',
-    completed: true,
-    type: 'weekly',
-  },
-  {
-    id: 'wt-3',
-    title: 'Prepare Midterm Comprehensive Study Guide for Macroeconomics',
-    courseTag: 'ECON 102',
-    timestamp: 'Due Sunday',
-    completed: false,
-    type: 'weekly',
-  },
-];
+const INITIAL_DAILY_TASKS: TaskItem[] = [];
+const INITIAL_WEEKLY_TASKS: TaskItem[] = [];
 
 export default function StudentTaskScreen() {
   const router = useRouter();
@@ -115,8 +57,32 @@ export default function StudentTaskScreen() {
   const [activeTab, setActiveTab] = useState<'daily' | 'weekly'>('daily');
 
   // Task lists
-  const [dailyTasks, setDailyTasks] = useState<TaskItem[]>(INITIAL_DAILY_TASKS);
-  const [weeklyTasks, setWeeklyTasks] = useState<TaskItem[]>(INITIAL_WEEKLY_TASKS);
+  const [dailyTasks, setDailyTasks] = useState<TaskItem[]>([]);
+  const [weeklyTasks, setWeeklyTasks] = useState<TaskItem[]>([]);
+
+  useEffect(() => {
+    getBackendTasks().then((allTasks) => {
+      const daily: TaskItem[] = [];
+      const weekly: TaskItem[] = [];
+      allTasks.forEach((t) => {
+        const item: TaskItem = {
+          id: t.id,
+          title: t.title,
+          courseTag: t.category || 'Study',
+          timestamp: t.dueDate ? `Due ${t.dueDate}` : 'Today',
+          completed: !!t.completed,
+          type: t.period === 'weekly' ? 'weekly' : 'daily',
+        };
+        if (t.period === 'weekly') {
+          weekly.push(item);
+        } else {
+          daily.push(item);
+        }
+      });
+      setDailyTasks(daily);
+      setWeeklyTasks(weekly);
+    });
+  }, []);
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -133,6 +99,7 @@ export default function StudentTaskScreen() {
   const [focusActive, setFocusActive] = useState(false);
 
   const toggleTask = (id: string, type: 'daily' | 'weekly') => {
+    toggleBackendTask(id).catch(() => {});
     if (type === 'daily') {
       setDailyTasks((prev) =>
         prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t))

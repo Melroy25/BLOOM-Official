@@ -49,31 +49,34 @@ export default function DocumentDetailScreen() {
   // Fetch document from store or fallback
   const existingDoc = id ? getDocumentById(id) : undefined;
 
+  const now = new Date();
+  const defaultDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+  const defaultTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
   // Local state
-  const [docId, setDocId] = useState<string>(existingDoc?.id || id || 'doc-1');
-  const [title, setTitle] = useState(existingDoc?.title || 'Daily Gratitude');
-  const [content, setContent] = useState(
-    existingDoc?.content ||
-      'Today was surprisingly calm. I took time to breathe between lectures, sat in the campus garden, and noticed the autumn leaves falling.\n\nThree simple things that brought warmth today:\n1. A warm cup of chamomile tea before morning study.\n2. A friendly smile from a classmate in the library.\n3. The quiet 15 minutes of uninterrupted reading at sunset.'
-  );
-  const [dateStr, setDateStr] = useState(existingDoc?.date || 'October 24');
-  const [timeStr, setTimeStr] = useState(existingDoc?.time || '9:42 AM');
-  const [tags, setTags] = useState<string[]>(
-    existingDoc?.tags || ['✨ Gratitude', 'Reflection']
-  );
-  const [calloutText, setCalloutText] = useState(
-    existingDoc?.callout ||
-      'Gratitude turns what we have into enough. Keep noticing the small anchors of peace.'
-  );
-  const [checklist, setChecklist] = useState<ChecklistItem[]>(
-    existingDoc?.checklist || [
-      { id: 'c1', text: 'Drink 2L of water today', done: true },
-      { id: 'c2', text: '10-minute mindful breathing break', done: true },
-      { id: 'c3', text: 'Evening gratitude journaling', done: false },
-    ]
-  );
+  const [docId, setDocId] = useState<string>(existingDoc?.id || id || '');
+  const [title, setTitle] = useState(existingDoc?.title || '');
+  const [content, setContent] = useState(existingDoc?.content || '');
+  const [dateStr, setDateStr] = useState(existingDoc?.date || defaultDate);
+  const [timeStr, setTimeStr] = useState(existingDoc?.time || defaultTime);
+  const [tags, setTags] = useState<string[]>(existingDoc?.tags || ['Reflection']);
+  const [calloutText, setCalloutText] = useState(existingDoc?.callout || '');
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(existingDoc?.checklist || []);
   const [newChecklistText, setNewChecklistText] = useState('');
-  const [saveStatus, setSaveStatus] = useState<string>('Cloud Saved just now');
+  const [saveStatus, setSaveStatus] = useState<string>('Saved');
+
+  useEffect(() => {
+    if (existingDoc) {
+      setDocId(existingDoc.id);
+      setTitle(existingDoc.title);
+      setContent(existingDoc.content);
+      setDateStr(existingDoc.date);
+      setTimeStr(existingDoc.time);
+      setTags(existingDoc.tags || ['Reflection']);
+      setCalloutText(existingDoc.callout || '');
+      setChecklist(existingDoc.checklist || []);
+    }
+  }, [existingDoc]);
 
   // Toolbar formatting state
   const [isBold, setIsBold] = useState(false);

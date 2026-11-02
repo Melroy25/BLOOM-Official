@@ -38,6 +38,8 @@ import { Typography } from '../constants/typography';
 import { Spacing, BorderRadius } from '../constants/spacing';
 import { Shadows } from '../constants/shadows';
 import { FloatingParticles } from '../components/heal-zone/FloatingParticles';
+import { useAuth } from '../context/AuthContext';
+import { addBurstedThought, addWellnessActivity } from '../services/firestoreService';
 
 // Audio URL for soothing 432Hz ambient Tibetan singing bowl chime (verified 200 OK)
 const AMBIENT_AUDIO_URL =
@@ -80,6 +82,7 @@ const getDynamicQuotes = (userThought: string) => {
 
 export default function HealBubbleScreen() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 24 : 16);
   const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 16 : 20);
 
@@ -292,8 +295,30 @@ export default function HealBubbleScreen() {
     setStep(4);
   };
 
-  // Save feedback and return
-  const handleSaveFeedback = () => {
+  // Save feedback to Firestore and return
+  const handleSaveFeedback = async () => {
+    if (user?.uid && thoughtText.trim()) {
+      try {
+        await addBurstedThought({
+          userId: user.uid,
+          thought: thoughtText.trim(),
+          feelingId: selectedEmotion?.id || 'calm',
+          feelingLabel: selectedEmotion?.label || 'Calm',
+          feelingEmoji: selectedEmotion?.emoji || '🌿',
+          customNote: customNote.trim() || undefined,
+          sessionDurationSeconds: 60 - secondsRemaining || 60,
+        });
+
+        await addWellnessActivity({
+          userId: user.uid,
+          activityType: 'meditation',
+          title: 'Heal Bubble Meditation',
+          durationMinutes: 1,
+        });
+      } catch (err) {
+        console.warn('[HealBubble] Error saving bursted thought:', err);
+      }
+    }
     setSavedSessionsCount(prev => prev + 1);
     // Reset state and return to Screen 1
     setStep(1);
@@ -314,6 +339,14 @@ export default function HealBubbleScreen() {
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
+  const handleGoBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
+
   // ==========================================
   // RENDER SCREEN 1: INITIAL STATE ("Create a Bubble")
   // ==========================================
@@ -325,7 +358,7 @@ export default function HealBubbleScreen() {
         <View style={styles.headerRow}>
           <TouchableOpacity
             style={styles.headerIconBtn}
-            onPress={() => router.back()}
+            onPress={handleGoBack}
             activeOpacity={0.7}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >

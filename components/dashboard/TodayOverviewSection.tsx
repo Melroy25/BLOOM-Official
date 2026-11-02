@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { CheckCircle2, Clock, ShieldAlert, FileText, ArrowUpRight } from 'lucide-react-native';
 import { Spacing, BorderRadius } from '../../constants/spacing';
 import { Shadows } from '../../constants/shadows';
+import { FontFamily } from '../../constants/typography';
 import { useTheme } from '../../context/ThemeContext';
 
 interface TodayOverviewSectionProps {
@@ -17,7 +18,7 @@ interface TodayOverviewSectionProps {
 export const TodayOverviewSection: React.FC<TodayOverviewSectionProps> = ({
   tasksDoneCount,
   totalTasksCount,
-  screenTimeText = '42m (in-app)',
+  screenTimeText = '0m',
   onOpenTasks,
   onOpenSOS,
   onOpenReports,
@@ -170,11 +171,13 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   sectionTitle: {
+    fontFamily: FontFamily.sansBold,
     fontSize: 18,
     fontWeight: '700',
     letterSpacing: -0.3,
   },
   sectionSubtitle: {
+    fontFamily: FontFamily.sansRegular,
     fontSize: 13,
     fontWeight: '400',
   },
@@ -208,6 +211,7 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   tileCategory: {
+    fontFamily: FontFamily.sansSemiBold,
     fontSize: 11,
     fontWeight: '600',
     textTransform: 'uppercase',
@@ -218,11 +222,13 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   tileMetric: {
+    fontFamily: FontFamily.monoBold,
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: -0.3,
   },
   tileDesc: {
+    fontFamily: FontFamily.sansRegular,
     fontSize: 11,
     lineHeight: 15,
   },

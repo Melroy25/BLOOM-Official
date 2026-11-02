@@ -148,9 +148,9 @@ export const UploadSongModal: React.FC<UploadSongModalProps> = ({
     setFileSizeFormatted(formatFileSize(file.size));
     setErrorMsg(null);
 
-    // Create object URL for preview and duration detection
-    if (typeof URL !== 'undefined') {
-      const url = URL.createObjectURL(file);
+    // Create object URL or use native file URI for preview and duration detection
+    const url = (file as any)?.uri || (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function' ? URL.createObjectURL(file) : '');
+    if (url) {
       setCurrentBlobUrl(url);
       currentBlobUrlRef.current = url;
     }

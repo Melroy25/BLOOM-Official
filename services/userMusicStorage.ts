@@ -1,3 +1,4 @@
+import { auth } from './firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MusicSong, CustomPlaylist } from '../components/music/musicData';
 
@@ -14,7 +15,8 @@ export interface UserSong {
   createdAt: number;
 }
 
-const CURRENT_USER_ID = 'user_me';
+export const getCurrentUserId = (): string => auth.currentUser?.uid || 'user_me';
+const CURRENT_USER_ID = getCurrentUserId();
 const METADATA_STORAGE_KEY = `@bloom_user_music_metadata_${CURRENT_USER_ID}`;
 const PLAYLISTS_STORAGE_KEY = `@bloom_user_playlists_${CURRENT_USER_ID}`;
 const DB_NAME = 'BloomMusicStorageDB';
@@ -41,53 +43,75 @@ export const cleanFileNameToTitle = (fileName: string): string => {
     .join(' ');
 };
 
-// Device audio file selector supporting multi-file upload
-export const pickAudioFilesFromDevice = (): Promise<File[]> => {
-  return new Promise((resolve) => {
-    if (typeof document === 'undefined') {
-      resolve([]);
-      return;
-    }
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'audio/*,.mp3,.wav,.m4a,.aac,.ogg';
-    input.multiple = true;
-    input.style.position = 'fixed';
-    input.style.top = '-9999px';
-    input.style.left = '-9999px';
-    input.style.opacity = '0';
-
-    let resolved = false;
-    const cleanupAndResolve = (files: File[]) => {
-      if (resolved) return;
-      resolved = true;
-      try {
-        if (input.parentNode) {
-          input.parentNode.removeChild(input);
-        }
-      } catch (e) {}
-      resolve(files);
-    };
-
-    input.onchange = (e: any) => {
-      const fileList: FileList = e.target.files;
-      const files: File[] = [];
-      if (fileList) {
-        for (let i = 0; i < fileList.length; i++) {
-          const item = fileList.item(i);
-          if (item) files.push(item);
-        }
+// Cross-platform device audio file selector (Android / iOS / Web)
+export const pickAudioFilesFromDevice = async (): Promise<any[]> => {
+  try {
+    const DocumentPicker = require('expo-document-picker');
+    if (DocumentPicker && DocumentPicker.getDocumentAsync) {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['audio/*'],
+        multiple: true,
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets) {
+        return [];
       }
-      cleanupAndResolve(files);
-    };
+      return result.assets.map((asset: any) => ({
+        name: asset.name,
+        size: asset.size || 0,
+        uri: asset.uri,
+        type: asset.mimeType || 'audio/mpeg',
+      }));
+    }
+  } catch (err) {
+    console.warn('[MusicStorage] DocumentPicker fallback:', err);
+  }
 
-    input.oncancel = () => {
-      cleanupAndResolve([]);
-    };
+  if (typeof document !== 'undefined') {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'audio/*,.mp3,.wav,.m4a,.aac,.ogg';
+      input.multiple = true;
+      input.style.position = 'fixed';
+      input.style.top = '-9999px';
+      input.style.left = '-9999px';
+      input.style.opacity = '0';
 
-    document.body.appendChild(input);
-    input.click();
-  });
+      let resolved = false;
+      const cleanupAndResolve = (files: any[]) => {
+        if (resolved) return;
+        resolved = true;
+        try {
+          if (input.parentNode) {
+            input.parentNode.removeChild(input);
+          }
+        } catch (e) {}
+        resolve(files);
+      };
+
+      input.onchange = (e: any) => {
+        const fileList: FileList = e.target.files;
+        const files: File[] = [];
+        if (fileList) {
+          for (let i = 0; i < fileList.length; i++) {
+            const item = fileList.item(i);
+            if (item) files.push(item);
+          }
+        }
+        cleanupAndResolve(files);
+      };
+
+      input.oncancel = () => {
+        cleanupAndResolve([]);
+      };
+
+      document.body.appendChild(input);
+      input.click();
+    });
+  }
+
+  return [];
 };
 
 // Device album cover image selector

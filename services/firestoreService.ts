@@ -20,13 +20,17 @@ import {
   arrayUnion,
   arrayRemove,
   increment,
+  runTransaction,
   Unsubscribe,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
+import { deleteCommunityImage } from './firebaseStorageService';
 import {
   UserProfile,
   OnboardingResponses,
   MoodEntryDocument,
+  WellnessActivityDocument,
+  BurstedThoughtDocument,
   TaskDocument,
   HabitDocument,
   GlobalPostDocument,
@@ -34,6 +38,9 @@ import {
   GlobalMessageDocument,
   AIConversationDocument,
   AIMessageDocument,
+  WellnessReportDocument,
+  LanguagePreference,
+  VoicePreference,
 } from '../types';
 
 // ============================================================================
@@ -211,6 +218,80 @@ export async function getUserMoodEntries(
     return [];
   }
 }
+
+export async function addWellnessActivity(
+  activity: Omit<WellnessActivityDocument, 'id' | 'completedAt'>
+): Promise<string> {
+  const colRef = collection(db, 'wellnessActivities');
+  const docRef = await addDoc(colRef, {
+    ...activity,
+    completedAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function getUserWellnessActivities(
+  userId: string,
+  limitCount = 30
+): Promise<WellnessActivityDocument[]> {
+  try {
+    const colRef = collection(db, 'wellnessActivities');
+    const q = query(colRef, where('userId', '==', userId), limit(limitCount));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as WellnessActivityDocument) }));
+  } catch (err: any) {
+    if (err?.code !== 'permission-denied') {
+      console.warn('[Firestore] Error fetching wellness activities:', err?.message || err);
+    }
+    return [];
+  }
+}
+
+export async function addBurstedThought(entry: {
+  userId: string;
+  thought: string;
+  feelingId: string;
+  feelingLabel: string;
+  feelingEmoji: string;
+  customNote?: string;
+  sessionDurationSeconds: number;
+}): Promise<string> {
+  const colRef = collection(db, 'burstedThoughts');
+  const docRef = await addDoc(colRef, {
+    ...entry,
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function getUserBurstedThoughts(
+  userId: string,
+  limitCount = 30
+): Promise<BurstedThoughtDocument[]> {
+  try {
+    const colRef = collection(db, 'burstedThoughts');
+    const q = query(
+      colRef,
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc'),
+      limit(limitCount)
+    );
+    let snap;
+    try {
+      snap = await getDocs(q);
+    } catch {
+      const fallbackQ = query(colRef, where('userId', '==', userId), limit(limitCount));
+      snap = await getDocs(fallbackQ);
+    }
+    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as BurstedThoughtDocument) }));
+  } catch (err: any) {
+    if (err?.code !== 'permission-denied') {
+      console.warn('[Firestore] Error fetching bursted thoughts:', err?.message || err);
+    }
+    return [];
+  }
+}
+
 
 // ============================================================================
 // 3. TASKS & HABITS SERVICES
@@ -417,25 +498,34 @@ export async function sendGlobalMessage(
 export async function getUserAIConversations(
   userId: string
 ): Promise<AIConversationDocument[]> {
+  const currentUid = auth.currentUser?.uid || userId;
   try {
     const colRef = collection(db, 'aiConversations');
     let snap;
     try {
       const q = query(
         colRef,
-        where('userId', '==', userId),
+        where('userId', '==', currentUid),
         orderBy('updatedAt', 'desc')
       );
       snap = await getDocs(q);
     } catch {
-      const fallbackQ = query(colRef, where('userId', '==', userId));
+      const fallbackQ = query(colRef, where('userId', '==', currentUid));
       snap = await getDocs(fallbackQ);
     }
-    const docs = snap.docs.map((d) => {
+
+    if ((!snap || snap.empty) && currentUid && currentUid !== 'anonymous') {
+      try {
+        const userColRef = collection(db, 'users', currentUid, 'aiConversations');
+        snap = await getDocs(userColRef);
+      } catch {}
+    }
+
+    const docs = (snap?.docs || []).map((d) => {
       const data = d.data();
       return {
         id: d.id,
-        userId: data.userId,
+        userId: data.userId || currentUid,
         title: data.title || 'Mindful Reflection',
         lastMessageSnippet: data.lastMessageSnippet || '',
         createdAt: data.createdAt,
@@ -459,31 +549,82 @@ export async function createAIConversation(
   userId: string,
   title: string
 ): Promise<string> {
+  const currentUid = auth.currentUser?.uid || userId;
   const colRef = collection(db, 'aiConversations');
   const docRef = await addDoc(colRef, {
-    userId,
+    userId: currentUid,
     title,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+
+  // Mirror in users/{userId}/aiConversations for strict UID-scoped subcollection rules
+  if (currentUid && currentUid !== 'anonymous') {
+    try {
+      const userColRef = collection(db, 'users', currentUid, 'aiConversations');
+      const userDocRef = doc(userColRef, docRef.id);
+      await setDoc(userDocRef, {
+        userId: currentUid,
+        title,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } catch {}
+  }
+
   return docRef.id;
 }
 
 export async function deleteAIConversation(conversationId: string): Promise<void> {
   const convRef = doc(db, 'aiConversations', conversationId);
   await deleteDoc(convRef);
+  const currentUid = auth.currentUser?.uid;
+  if (currentUid) {
+    try {
+      await deleteDoc(doc(db, 'users', currentUid, 'aiConversations', conversationId));
+    } catch {}
+  }
+}
+
+export async function renameAIConversation(conversationId: string, newTitle: string): Promise<void> {
+  const convRef = doc(db, 'aiConversations', conversationId);
+  await updateDoc(convRef, {
+    title: newTitle,
+    updatedAt: serverTimestamp(),
+  });
+  const currentUid = auth.currentUser?.uid;
+  if (currentUid) {
+    try {
+      await updateDoc(doc(db, 'users', currentUid, 'aiConversations', conversationId), {
+        title: newTitle,
+        updatedAt: serverTimestamp(),
+      });
+    } catch {}
+  }
 }
 
 export async function saveAIMessage(
   conversationId: string,
   message: Omit<AIMessageDocument, 'id' | 'createdAt'>
 ): Promise<string> {
-  const messagesColRef = collection(db, 'aiConversations', conversationId, 'messages');
-  const docRef = await addDoc(messagesColRef, {
+  const currentUid = auth.currentUser?.uid || message.userId || 'anonymous';
+  const effectiveMessage = {
     ...message,
+    userId: currentUid,
     conversationId,
     createdAt: serverTimestamp(),
-  });
+  };
+
+  const messagesColRef = collection(db, 'aiConversations', conversationId, 'messages');
+  const docRef = await addDoc(messagesColRef, effectiveMessage);
+
+  // Sync to users/{userId}/aiConversations/{conversationId}/messages
+  if (currentUid && currentUid !== 'anonymous') {
+    try {
+      const userSubCol = collection(db, 'users', currentUid, 'aiConversations', conversationId, 'messages');
+      await setDoc(doc(userSubCol, docRef.id), effectiveMessage);
+    } catch {}
+  }
 
   // Update snippet on parent conversation
   try {
@@ -802,13 +943,16 @@ export async function getUserJoinedChallengesCount(userId: string): Promise<numb
 
 export async function getFirestoreCommunityPosts(currentUserId?: string): Promise<any[]> {
   try {
-    const colRef = collection(db, 'posts');
+    // Check globalPosts first (official collection in firestore.rules), fallback to posts
+    let colRef = collection(db, 'globalPosts');
     let snap;
     try {
-      const q = query(colRef, orderBy('createdAt', 'desc'), limit(25));
+      const q = query(colRef, orderBy('createdAt', 'desc'), limit(30));
       snap = await getDocs(q);
     } catch {
-      snap = await getDocs(query(colRef, limit(25)));
+      colRef = collection(db, 'posts');
+      const q = query(colRef, orderBy('createdAt', 'desc'), limit(30));
+      snap = await getDocs(q);
     }
 
     if (snap.empty) {
@@ -819,32 +963,44 @@ export async function getFirestoreCommunityPosts(currentUserId?: string): Promis
       const data = d.data();
       const likedBy = Array.isArray(data.likedByUids) ? data.likedByUids : [];
       const isLiked = currentUserId ? likedBy.includes(currentUserId) : false;
-      const initials = (data.userName || data.authorName || 'BM')
+      const initials = (data.authorName || data.userName || 'BM')
         .split(' ')
         .map((p: string) => p[0])
         .join('')
         .toUpperCase()
         .slice(0, 2);
 
-      let timeAgo = 'Recently';
+      let timeAgo = 'Just now';
       if (data.createdAt) {
         const date = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
-        const diffHours = Math.round((Date.now() - date.getTime()) / (1000 * 60 * 60));
-        timeAgo = diffHours <= 1 ? 'Just now' : `${diffHours}h ago`;
+        const diffMs = Date.now() - date.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 1) timeAgo = 'Just now';
+        else if (diffMins < 60) timeAgo = `${diffMins}m ago`;
+        else if (diffHours < 24) timeAgo = `${diffHours}h ago`;
+        else if (diffDays < 7) timeAgo = `${diffDays}d ago`;
+        else timeAgo = date.toLocaleDateString();
       }
 
       return {
         id: d.id,
-        userId: data.userId || data.authorUid || '',
-        userName: data.userName || data.authorName || 'Bloom Member',
-        userHandle: data.userHandle || (data.authorUsername ? `@${data.authorUsername}` : '@member'),
-        userAvatar: data.userAvatar || data.authorPhotoURL || '',
+        userId: data.authorUid || data.userId || '',
+        authorUid: data.authorUid || data.userId || '',
+        userName: data.authorName || data.userName || 'Bloom Member',
+        userHandle: data.authorHandle || data.userHandle || (data.authorUsername ? `@${data.authorUsername}` : '@member'),
+        userAvatar: data.authorAvatar || data.userAvatar || data.authorPhotoURL || '',
         userInitials: initials,
         timeAgo,
         category: data.category || 'Wellness',
         content: data.content || '',
         image: data.image || data.imageUri || undefined,
+        imagePath: data.imagePath || undefined,
         isPrivate: data.isPrivate ?? false,
+        likesVisible: data.likesVisible ?? true,
+        commentsEnabled: data.commentsEnabled ?? true,
         likesCount: typeof data.likesCount === 'number' ? data.likesCount : likedBy.length,
         isLiked,
         likedByUids: likedBy,
@@ -868,40 +1024,68 @@ export async function createFirestorePost(post: {
   category: string;
   content: string;
   image?: string;
+  imagePath?: string;
   isPrivate?: boolean;
+  likesVisible?: boolean;
+  commentsEnabled?: boolean;
 }): Promise<string> {
-  const colRef = collection(db, 'posts');
+  const colRef = collection(db, 'globalPosts');
   const docRef = await addDoc(colRef, {
-    ...post,
+    authorUid: post.userId,
+    userId: post.userId,
+    authorName: post.userName,
+    userName: post.userName,
+    authorHandle: post.userHandle,
+    userHandle: post.userHandle,
+    authorAvatar: post.userAvatar || '',
     userAvatar: post.userAvatar || '',
-    likesCount: 1,
-    likedByUids: [post.userId],
+    category: post.category,
+    content: post.content.trim(),
+    image: post.image || null,
+    imagePath: post.imagePath || null,
+    isPrivate: post.isPrivate ?? false,
+    likesVisible: post.likesVisible ?? true,
+    commentsEnabled: post.commentsEnabled ?? true,
+    likesCount: 0,
+    likedByUids: [],
     commentsCount: 0,
     comments: [],
     sharesCount: 0,
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
   return docRef.id;
 }
 
 export async function toggleFirestorePostLike(postId: string, userId: string, nextLiked: boolean): Promise<void> {
   try {
-    const postRef = doc(db, 'posts', postId);
-    const snap = await getDoc(postRef);
-    if (snap.exists()) {
+    await runTransaction(db, async (transaction) => {
+      let postRef = doc(db, 'globalPosts', postId);
+      let snap = await transaction.get(postRef);
+      if (!snap.exists()) {
+        postRef = doc(db, 'posts', postId);
+        snap = await transaction.get(postRef);
+        if (!snap.exists()) return;
+      }
+
       const data = snap.data();
       const likedBy: string[] = Array.isArray(data.likedByUids) ? data.likedByUids : [];
+      const isCurrentlyLiked = likedBy.includes(userId);
+
       let updatedLikedBy: string[];
-      if (nextLiked) {
-        updatedLikedBy = [...new Set([...likedBy, userId])];
-      } else {
+      if (nextLiked && !isCurrentlyLiked) {
+        updatedLikedBy = [...likedBy, userId];
+      } else if (!nextLiked && isCurrentlyLiked) {
         updatedLikedBy = likedBy.filter((uid) => uid !== userId);
+      } else {
+        return; // Prevent duplicate like actions
       }
-      await updateDoc(postRef, {
+
+      transaction.update(postRef, {
         likedByUids: updatedLikedBy,
         likesCount: updatedLikedBy.length,
       });
-    }
+    });
   } catch (err) {
     console.warn('[Firestore] toggleLike error:', err);
   }
@@ -914,53 +1098,162 @@ export async function addFirestorePostComment(postId: string, comment: {
   text: string;
 }): Promise<void> {
   try {
-    const postRef = doc(db, 'posts', postId);
-    const snap = await getDoc(postRef);
-    if (snap.exists()) {
+    await runTransaction(db, async (transaction) => {
+      let postRef = doc(db, 'globalPosts', postId);
+      let snap = await transaction.get(postRef);
+      if (!snap.exists()) {
+        postRef = doc(db, 'posts', postId);
+        snap = await transaction.get(postRef);
+        if (!snap.exists()) return;
+      }
+
       const data = snap.data();
       const currentComments = Array.isArray(data.comments) ? data.comments : [];
+      const initials = (comment.userName || 'BM')
+        .split(' ')
+        .map((p: string) => p[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
+
       const newComment = {
-        id: `c_${Date.now()}`,
-        ...comment,
+        id: `c_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        userId: comment.userId,
+        authorUid: comment.userId,
+        userName: comment.userName,
         userAvatar: comment.userAvatar || '',
+        userInitials: initials,
+        text: comment.text.trim(),
         timestamp: 'Just now',
         createdAt: new Date().toISOString(),
       };
+
       const updatedComments = [...currentComments, newComment];
-      await updateDoc(postRef, {
+      transaction.update(postRef, {
         comments: updatedComments,
         commentsCount: updatedComments.length,
       });
-    }
+    });
   } catch (err) {
     console.warn('[Firestore] addComment error:', err);
   }
 }
 
+export async function deleteFirestorePostComment(postId: string, commentId: string, userId: string): Promise<void> {
+  try {
+    await runTransaction(db, async (transaction) => {
+      let postRef = doc(db, 'globalPosts', postId);
+      let snap = await transaction.get(postRef);
+      if (!snap.exists()) {
+        postRef = doc(db, 'posts', postId);
+        snap = await transaction.get(postRef);
+        if (!snap.exists()) return;
+      }
+
+      const data = snap.data();
+      const currentComments = Array.isArray(data.comments) ? data.comments : [];
+      const target = currentComments.find((c: any) => c.id === commentId);
+      if (!target) return;
+
+      if (target.userId !== userId && target.authorUid !== userId) {
+        throw new Error('Permission denied: You can only delete your own comment.');
+      }
+
+      const updatedComments = currentComments.filter((c: any) => c.id !== commentId);
+      transaction.update(postRef, {
+        comments: updatedComments,
+        commentsCount: Math.max(0, updatedComments.length),
+      });
+    });
+  } catch (err) {
+    console.warn('[Firestore] deleteComment error:', err);
+  }
+}
+
+export async function deleteFirestorePost(postId: string, userId: string): Promise<void> {
+  let postRef = doc(db, 'globalPosts', postId);
+  let snap = await getDoc(postRef);
+  if (!snap.exists()) {
+    postRef = doc(db, 'posts', postId);
+    snap = await getDoc(postRef);
+  }
+  if (!snap.exists()) return;
+
+  const data = snap.data();
+  if (data.authorUid !== userId && data.userId !== userId) {
+    throw new Error('Permission denied: You can only delete your own reflection.');
+  }
+
+  // Delete image from storage if uploaded
+  if (data.imagePath) {
+    await deleteCommunityImage(data.imagePath);
+  }
+
+  await deleteDoc(postRef);
+}
+
+export async function reportFirestorePost(postId: string, reporterUid: string, reason: string): Promise<string> {
+  const colRef = collection(db, 'postReports');
+  const docRef = await addDoc(colRef, {
+    postId,
+    reporterUid,
+    reason: reason.trim(),
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+// ============================================================================
+// GLOBAL LIVE CHAT & POLLS SERVICES
+// ============================================================================
+
 export function subscribeToGlobalChatMessages(
   currentUserId: string,
-  onUpdate: (messages: any[]) => void
+  onUpdate: (messages: any[]) => void,
+  onError?: (err: any) => void
 ): Unsubscribe {
   try {
-    const colRef = collection(db, 'globalChat');
+    const colRef = collection(db, 'globalMessages');
     const q = query(colRef, orderBy('createdAt', 'asc'), limit(60));
     return onSnapshot(
       q,
       (snap) => {
         const msgs = snap.docs.map((d) => {
           const data = d.data();
-          const isMe = data.senderId === currentUserId || data.authorUid === currentUserId;
+          const senderUid = data.authorUid || data.senderId || '';
+          const isMe = senderUid === currentUserId;
+
           let time = 'Just now';
           if (data.createdAt) {
             const date = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
             time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           }
+
+          // Reactions
+          const reactions = data.reactions || {};
+          const userReactions = data.userReactions || {};
+          const myEmoji = userReactions[currentUserId];
+          const myReactions = myEmoji ? [myEmoji] : [];
+
+          // Poll Data
+          let poll = undefined;
+          if (data.pollData) {
+            const p = data.pollData;
+            poll = {
+              id: p.id || d.id,
+              question: p.question,
+              options: Array.isArray(p.options) ? p.options : [],
+              totalVotes: typeof p.totalVotes === 'number' ? p.totalVotes : 0,
+              userVotedOptionId: p.voters ? p.voters[currentUserId] : undefined,
+            };
+          }
+
           return {
             id: d.id,
-            senderId: data.senderId || data.authorUid || '',
-            senderName: isMe ? 'You' : (data.senderName || data.authorName || 'Bloom Member'),
-            senderHandle: data.senderHandle || (data.authorUsername ? `@${data.authorUsername}` : '@member'),
-            senderInitials: (data.senderName || data.authorName || 'BM')
+            senderId: senderUid,
+            senderName: isMe ? 'You' : (data.authorName || data.senderName || 'Bloom Member'),
+            senderHandle: data.authorHandle || data.senderHandle || '@member',
+            senderInitials: (data.authorName || data.senderName || 'BM')
               .split(' ')
               .map((p: string) => p[0])
               .join('')
@@ -973,18 +1266,20 @@ export function subscribeToGlobalChatMessages(
             audioNote: data.audioNote || undefined,
             timestamp: time,
             isMe,
-            reactions: data.reactions || {},
-            myReactions: data.myReactions || [],
-            poll: data.poll || data.pollData || undefined,
+            reactions,
+            myReactions,
+            poll,
           };
         });
         onUpdate(msgs);
       },
       (error) => {
-        console.warn('[Firestore] Global chat subscription note:', error?.message || error);
+        console.warn('[Firestore] Global chat subscription error:', error?.message || error);
+        onError?.(error);
       }
     );
   } catch (e) {
+    onError?.(e);
     return () => {};
   }
 }
@@ -998,15 +1293,153 @@ export async function sendFirestoreChatMessage(message: {
   video?: string;
   fileDoc?: { name: string; size: string };
   audioNote?: { duration: string };
-  poll?: any;
 }): Promise<string> {
-  const colRef = collection(db, 'globalChat');
+  const colRef = collection(db, 'globalMessages');
   const docRef = await addDoc(colRef, {
-    ...message,
+    authorUid: message.senderId,
+    senderId: message.senderId,
+    authorName: message.senderName,
+    senderName: message.senderName,
+    authorHandle: message.senderHandle || '@member',
+    senderHandle: message.senderHandle || '@member',
+    text: message.text.trim(),
+    image: message.image || null,
+    video: message.video || null,
+    fileDoc: message.fileDoc || null,
+    audioNote: message.audioNote || null,
     reactions: {},
+    userReactions: {},
     createdAt: serverTimestamp(),
   });
   return docRef.id;
+}
+
+export async function createFirestoreChatPoll(poll: {
+  authorUid: string;
+  authorName: string;
+  authorHandle?: string;
+  question: string;
+  options: string[];
+}): Promise<string> {
+  const colRef = collection(db, 'globalMessages');
+  const pollOptions = poll.options.map((optText, idx) => ({
+    id: `opt_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+    text: optText.trim(),
+    votes: 0,
+  }));
+
+  const docRef = await addDoc(colRef, {
+    authorUid: poll.authorUid,
+    senderId: poll.authorUid,
+    authorName: poll.authorName,
+    senderName: poll.authorName,
+    authorHandle: poll.authorHandle || '@member',
+    senderHandle: poll.authorHandle || '@member',
+    text: `📊 Community Poll: ${poll.question.trim()}`,
+    pollData: {
+      id: `poll_${Date.now()}`,
+      question: poll.question.trim(),
+      options: pollOptions,
+      totalVotes: 0,
+      voters: {},
+    },
+    reactions: { '📊': 1 },
+    userReactions: { [poll.authorUid]: '📊' },
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function voteFirestoreChatPoll(messageId: string, userId: string, optionId: string): Promise<void> {
+  try {
+    await runTransaction(db, async (transaction) => {
+      const msgRef = doc(db, 'globalMessages', messageId);
+      const snap = await transaction.get(msgRef);
+      if (!snap.exists()) return;
+
+      const data = snap.data();
+      const pollData = data.pollData;
+      if (!pollData || !Array.isArray(pollData.options)) return;
+
+      const voters = pollData.voters || {};
+      if (voters[userId]) {
+        // User has already voted in this poll (one vote per user enforcement)
+        return;
+      }
+
+      const updatedOptions = pollData.options.map((opt: any) => {
+        if (opt.id === optionId) {
+          return { ...opt, votes: (opt.votes || 0) + 1 };
+        }
+        return opt;
+      });
+
+      const newTotal = (pollData.totalVotes || 0) + 1;
+      const updatedVoters = { ...voters, [userId]: optionId };
+
+      transaction.update(msgRef, {
+        pollData: {
+          ...pollData,
+          options: updatedOptions,
+          totalVotes: newTotal,
+          voters: updatedVoters,
+        },
+      });
+    });
+  } catch (err) {
+    console.warn('[Firestore] votePoll error:', err);
+  }
+}
+
+export async function toggleFirestoreChatReaction(messageId: string, userId: string, emoji: string): Promise<void> {
+  try {
+    await runTransaction(db, async (transaction) => {
+      const msgRef = doc(db, 'globalMessages', messageId);
+      const snap = await transaction.get(msgRef);
+      if (!snap.exists()) return;
+
+      const data = snap.data();
+      const reactions = { ...(data.reactions || {}) };
+      const userReactions = { ...(data.userReactions || {}) };
+      const currentEmoji = userReactions[userId];
+
+      if (currentEmoji === emoji) {
+        // User clicked same emoji -> Remove reaction
+        reactions[emoji] = Math.max(0, (reactions[emoji] || 1) - 1);
+        if (reactions[emoji] === 0) delete reactions[emoji];
+        delete userReactions[userId];
+      } else {
+        // If user already had another reaction, decrement it
+        if (currentEmoji && reactions[currentEmoji]) {
+          reactions[currentEmoji] = Math.max(0, reactions[currentEmoji] - 1);
+          if (reactions[currentEmoji] === 0) delete reactions[currentEmoji];
+        }
+        // Increment new reaction
+        reactions[emoji] = (reactions[emoji] || 0) + 1;
+        userReactions[userId] = emoji;
+      }
+
+      transaction.update(msgRef, {
+        reactions,
+        userReactions,
+      });
+    });
+  } catch (err) {
+    console.warn('[Firestore] toggleReaction error:', err);
+  }
+}
+
+export async function deleteFirestoreChatMessage(messageId: string, userId: string): Promise<void> {
+  const msgRef = doc(db, 'globalMessages', messageId);
+  const snap = await getDoc(msgRef);
+  if (!snap.exists()) return;
+
+  const data = snap.data();
+  if (data.authorUid !== userId && data.senderId !== userId) {
+    throw new Error('Permission denied: You can only delete your own chat message.');
+  }
+
+  await deleteDoc(msgRef);
 }
 
 export async function getCommunityMembers(currentUserId: string, limitCount = 10): Promise<UserProfile[]> {
@@ -1053,5 +1486,96 @@ export function subscribeToOnlineUsers(
     );
   } catch (_) {
     return () => {};
+  }
+}
+
+// ============================================================================
+// 15. WELLNESS REPORTS & USER PREFERENCES
+// ============================================================================
+
+export async function saveWellnessReport(report: WellnessReportDocument): Promise<string> {
+  try {
+    const colRef = collection(db, 'wellnessReports');
+    const docRef = report.id ? doc(db, 'wellnessReports', report.id) : doc(colRef);
+    const dataToSave = {
+      ...report,
+      id: docRef.id,
+      generatedAt: report.generatedAt || serverTimestamp(),
+    };
+    await setDoc(docRef, dataToSave, { merge: true });
+    return docRef.id;
+  } catch (err: any) {
+    console.warn('[Firestore] Error saving wellness report:', err?.message || err);
+    throw err;
+  }
+}
+
+export async function getUserWellnessReports(userId: string): Promise<WellnessReportDocument[]> {
+  try {
+    const colRef = collection(db, 'wellnessReports');
+    const q = query(colRef, where('userId', '==', userId));
+    const snap = await getDocs(q);
+    const reports = snap.docs.map((d) => ({ id: d.id, ...(d.data() as WellnessReportDocument) }));
+    return reports.sort((a, b) => {
+      const tA = (a.generatedAt as any)?.toMillis ? (a.generatedAt as any).toMillis() : new Date(a.generatedAt || 0).getTime();
+      const tB = (b.generatedAt as any)?.toMillis ? (b.generatedAt as any).toMillis() : new Date(b.generatedAt || 0).getTime();
+      return tB - tA;
+    });
+  } catch (err: any) {
+    if (err?.code !== 'permission-denied') {
+      console.warn('[Firestore] Error fetching wellness reports:', err?.message || err);
+    }
+    return [];
+  }
+}
+
+export async function getWellnessReportById(reportId: string): Promise<WellnessReportDocument | null> {
+  try {
+    const docRef = doc(db, 'wellnessReports', reportId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return { id: snap.id, ...(snap.data() as WellnessReportDocument) };
+    }
+    return null;
+  } catch (err: any) {
+    console.warn('[Firestore] Error fetching wellness report by ID:', err?.message || err);
+    return null;
+  }
+}
+
+export async function deleteWellnessReport(reportId: string): Promise<void> {
+  try {
+    const docRef = doc(db, 'wellnessReports', reportId);
+    await deleteDoc(docRef);
+  } catch (err: any) {
+    console.warn('[Firestore] Error deleting wellness report:', err?.message || err);
+    throw err;
+  }
+}
+
+export async function updateUserPreferences(
+  userId: string,
+  prefs: { languagePreference?: LanguagePreference; voicePreference?: VoicePreference }
+): Promise<void> {
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      ...prefs,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (err: any) {
+    console.warn('[Firestore] Error updating user preferences:', err?.message || err);
+    throw err;
+  }
+}
+
+export async function getUserFocusSessions(userId: string): Promise<any[]> {
+  try {
+    const colRef = collection(db, 'focusSessions');
+    const q = query(colRef, where('userId', '==', userId));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch {
+    return [];
   }
 }

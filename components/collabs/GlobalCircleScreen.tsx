@@ -74,7 +74,10 @@ interface GlobalCircleScreenProps {
   onOpenComments: (post: CommunityPost) => void;
   onSharePost?: (post: CommunityPost) => void;
   currentUserInitials?: string;
+  currentUserId?: string;
   onlineMembers?: any[];
+  onDeletePost?: (postId: string) => void;
+  onReportPost?: (postId: string, reason?: string) => void;
 }
 
 // Reusable Botanical Bloom Logo Mark
@@ -124,8 +127,11 @@ export const GlobalCircleScreen: React.FC<GlobalCircleScreenProps> = ({
   onToggleBookmarkPost,
   onOpenComments,
   onSharePost,
-  currentUserInitials = 'MA',
+  currentUserInitials = 'BM',
+  currentUserId,
   onlineMembers = [],
+  onDeletePost,
+  onReportPost,
 }) => {
   const insets = useSafeAreaInsets();
   const router = useRouter();

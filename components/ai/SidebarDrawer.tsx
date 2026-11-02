@@ -19,10 +19,16 @@ import {
   MessageSquare,
   Sprout,
   Sparkles,
+  Edit2,
+  Trash2,
+  Globe,
+  Volume2,
+  Settings,
 } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { ConversationThread } from '../../services/aiCompanionService';
+import { UserProfile } from '../../types';
 
 interface SidebarDrawerProps {
   isOpen: boolean;
@@ -31,9 +37,13 @@ interface SidebarDrawerProps {
   onSelectChatMode: () => void;
   onNewChat: () => void;
   onSelectThread: (thread: ConversationThread) => void;
+  onRenameThread?: (thread: ConversationThread) => void;
+  onDeleteThread?: (thread: ConversationThread) => void;
+  onOpenPreferences?: () => void;
   activeMode: 'VOICE' | 'CHAT';
   activeThreadId?: string;
   threads: ConversationThread[];
+  userProfile?: UserProfile | null;
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -49,6 +59,10 @@ export function SidebarDrawer({
   activeMode,
   activeThreadId,
   threads,
+  onRenameThread,
+  onDeleteThread,
+  onOpenPreferences,
+  userProfile,
 }: SidebarDrawerProps) {
   const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
@@ -206,47 +220,105 @@ export function SidebarDrawer({
             {threads.map((thread) => {
               const isSelected = activeMode === 'CHAT' && activeThreadId === thread.id;
               return (
-                <TouchableOpacity
+                <View
                   key={thread.id}
                   style={[styles.threadItem, isSelected && styles.threadItemActive]}
-                  onPress={() => {
-                    onSelectThread(thread);
-                    onClose();
-                  }}
-                  activeOpacity={0.7}
                 >
-                  <MessageSquare
-                    size={16}
-                    color={isSelected ? Colors.primaryDark : Colors.mutedText}
-                    strokeWidth={1.8}
-                  />
-                  <Text
-                    style={[styles.threadTitle, isSelected && styles.threadTitleActive]}
-                    numberOfLines={1}
+                  <TouchableOpacity
+                    style={styles.threadClickArea}
+                    onPress={() => {
+                      onSelectThread(thread);
+                      onClose();
+                    }}
+                    activeOpacity={0.7}
                   >
-                    {thread.title}
-                  </Text>
-                </TouchableOpacity>
+                    <MessageSquare
+                      size={16}
+                      color={isSelected ? Colors.primaryDark : Colors.mutedText}
+                      strokeWidth={1.8}
+                    />
+                    <Text
+                      style={[styles.threadTitle, isSelected && styles.threadTitleActive]}
+                      numberOfLines={1}
+                    >
+                      {thread.title}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Actions for active thread */}
+                  {isSelected && (
+                    <View style={styles.threadActionsRow}>
+                      {onRenameThread && (
+                        <TouchableOpacity
+                          style={styles.threadActionBtn}
+                          onPress={() => onRenameThread(thread)}
+                          activeOpacity={0.7}
+                          accessibilityLabel="Rename chat"
+                        >
+                          <Edit2 size={13} color={Colors.primary} strokeWidth={2} />
+                        </TouchableOpacity>
+                      )}
+                      {onDeleteThread && (
+                        <TouchableOpacity
+                          style={styles.threadActionBtn}
+                          onPress={() => onDeleteThread(thread)}
+                          activeOpacity={0.7}
+                          accessibilityLabel="Delete chat"
+                        >
+                          <Trash2 size={13} color="#C45A5A" strokeWidth={2} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+                </View>
               );
             })}
           </ScrollView>
 
+          {/* Language & Voice Preferences */}
+          {onOpenPreferences && (
+            <TouchableOpacity
+              style={styles.preferencesBtn}
+              onPress={() => {
+                onClose();
+                onOpenPreferences();
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={styles.prefLeft}>
+                <Globe size={16} color={Colors.primary} strokeWidth={2} />
+                <Text style={styles.prefText}>Language & Voice</Text>
+              </View>
+              <Settings size={14} color={Colors.mutedText} strokeWidth={1.8} />
+            </TouchableOpacity>
+          )}
+
           {/* Student Profile Card Footer */}
           <View style={styles.footerProfile}>
             <View style={styles.avatarWrapper}>
-              <Image
-                source={require('../../assets/maya-avatar.png')}
-                style={styles.profileAvatar}
-                resizeMode="cover"
-              />
+              {userProfile?.photoURL ? (
+                <Image
+                  source={{ uri: userProfile.photoURL }}
+                  style={styles.profileAvatar}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={[styles.profileAvatar, styles.avatarFallback]}>
+                  <Text style={styles.avatarInitial}>
+                    {(userProfile?.fullName || 'B')[0].toUpperCase()}
+                  </Text>
+                </View>
+              )}
               <View style={styles.onlineBadge} />
             </View>
             <View style={styles.profileInfo}>
               <Text style={styles.profileName} numberOfLines={1}>
-                Maya S.
+                {userProfile?.fullName || 'Bloom Member'}
               </Text>
               <View style={styles.roleBadge}>
-                <Text style={styles.roleBadgeText}>Student Bloom</Text>
+                <Text style={styles.roleBadgeText}>
+                  {userProfile?.userType ? userProfile.userType.toUpperCase() : 'BLOOM MEMBER'}
+                </Text>
               </View>
             </View>
           </View>
@@ -476,6 +548,57 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 14,
     color: Colors.darkText,
+  },
+  threadClickArea: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
+    paddingVertical: 4,
+  },
+  threadActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  threadActionBtn: {
+    padding: 5,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+  },
+  preferencesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: '#F3F6F2',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2EBE0',
+  },
+  prefLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  prefText: {
+    ...Typography.body,
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.darkText,
+  },
+  avatarFallback: {
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitial: {
+    color: Colors.white,
+    fontSize: 14,
+    fontWeight: '700',
   },
   roleBadge: {
     alignSelf: 'flex-start',

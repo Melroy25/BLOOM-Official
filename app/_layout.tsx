@@ -2,14 +2,30 @@ import React, { useEffect } from 'react';
 import { Stack, useRouter, useSegments, useRootNavigationState } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Platform } from 'react-native';
+import { useFonts } from 'expo-font';
+import {
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
+} from '@expo-google-fonts/plus-jakarta-sans';
+import {
+  JetBrainsMono_400Regular,
+  JetBrainsMono_500Medium,
+  JetBrainsMono_600SemiBold,
+  JetBrainsMono_700Bold,
+} from '@expo-google-fonts/jetbrains-mono';
 import { Colors } from '../constants/colors';
 import { AuthProvider, useAuth } from '../context/AuthContext';
-import { ThemeProvider } from '../context/ThemeContext';
+import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { initLocationOnAppOpen } from '../services/locationService';
 import { setupNotificationChannels } from '../services/notificationService';
 
 function RootNavigationCoordinator() {
   const { user, isLoading, onboardingCompleted } = useAuth();
+  const { colors, isDark } = useTheme();
   const segments = useSegments();
   const router = useRouter();
   const rootNavigationState = useRootNavigationState();
@@ -51,35 +67,68 @@ function RootNavigationCoordinator() {
   }, [user, onboardingCompleted, isLoading, segments, rootNavigationState?.key]);
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: Colors.background },
-        animation: 'fade',
-      }}
-    >
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-      <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="heal-bubble"
-        options={{ headerShown: false, animation: 'slide_from_right' }}
-      />
-      <Stack.Screen
-        name="music"
-        options={{ headerShown: false, animation: 'slide_from_right' }}
-      />
-    </Stack>
+    <>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.background },
+          animation: 'fade',
+        }}
+      >
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="heal-bubble"
+          options={{ headerShown: false, animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="music"
+          options={{ headerShown: false, animation: 'slide_from_right' }}
+        />
+      </Stack>
+    </>
   );
 }
 
 export default function RootLayout() {
+  // On native, load TTF font assets. On web, Google Fonts CSS is loaded in parallel.
+  const [fontsLoaded] = useFonts(
+    Platform.OS === 'web'
+      ? {}
+      : {
+          'PlusJakartaSans-Regular': PlusJakartaSans_400Regular,
+          'PlusJakartaSans-Medium': PlusJakartaSans_500Medium,
+          'PlusJakartaSans-SemiBold': PlusJakartaSans_600SemiBold,
+          'PlusJakartaSans-Bold': PlusJakartaSans_700Bold,
+          'PlusJakartaSans-ExtraBold': PlusJakartaSans_800ExtraBold,
+          'JetBrainsMono-Regular': JetBrainsMono_400Regular,
+          'JetBrainsMono-Medium': JetBrainsMono_500Medium,
+          'JetBrainsMono-SemiBold': JetBrainsMono_600SemiBold,
+          'JetBrainsMono-Bold': JetBrainsMono_700Bold,
+        }
+  );
+
   useEffect(() => {
-    // 1. Setup high-priority notification channels
+    // 1. Setup web Google Fonts stylesheet link
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const linkId = 'bloom-google-fonts';
+      if (!document.getElementById(linkId)) {
+        const link = document.createElement('link');
+        link.id = linkId;
+        link.rel = 'stylesheet';
+        link.href =
+          'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap';
+        document.head.appendChild(link);
+      }
+    }
+
+    // 2. Setup high-priority notification channels
     setupNotificationChannels();
 
-    // 2. Prompt for GPS location permission immediately on app startup
+    // 3. Prompt for GPS location permission immediately on app startup
     initLocationOnAppOpen();
   }, []);
 
@@ -87,7 +136,6 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <AuthProvider>
         <ThemeProvider>
-          <StatusBar style="dark" />
           <RootNavigationCoordinator />
         </ThemeProvider>
       </AuthProvider>
