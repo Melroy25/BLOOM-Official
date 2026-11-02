@@ -12,6 +12,7 @@ import {
 import { Check, Plus, Trash2, Edit3, X, Sparkles, CheckCircle2 } from 'lucide-react-native';
 import { Spacing, BorderRadius } from '../../constants/spacing';
 import { Shadows } from '../../constants/shadows';
+import { FontFamily } from '../../constants/typography';
 import { useTheme } from '../../context/ThemeContext';
 import { TaskDocument } from '../../types';
 
@@ -373,11 +374,13 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   sectionTitle: {
+    fontFamily: FontFamily.sansBold,
     fontSize: 18,
     fontWeight: '700',
     letterSpacing: -0.3,
   },
   sectionSubtitle: {
+    fontFamily: FontFamily.sansRegular,
     fontSize: 13,
     fontWeight: '400',
     marginTop: 2,
@@ -388,6 +391,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.round,
   },
   progressBadgeText: {
+    fontFamily: FontFamily.monoBold,
     fontSize: 11,
     fontWeight: '700',
   },
@@ -408,6 +412,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   percentLabel: {
+    fontFamily: FontFamily.monoBold,
     fontSize: 11,
     fontWeight: '700',
     minWidth: 32,
@@ -419,6 +424,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   loadingText: {
+    fontFamily: FontFamily.sansRegular,
     fontSize: 12,
   },
   emptyBox: {
@@ -429,10 +435,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   emptyTitle: {
+    fontFamily: FontFamily.sansBold,
     fontSize: 15,
     fontWeight: '700',
   },
   emptyDesc: {
+    fontFamily: FontFamily.sansRegular,
     fontSize: 12,
     textAlign: 'center',
   },

@@ -1,4 +1,17 @@
 import { useState, useEffect } from 'react';
+import {
+  collection,
+  doc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  onSnapshot,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { db, auth } from '../services/firebase';
 
 export interface ChecklistItem {
   id: string;
@@ -19,142 +32,129 @@ export interface DocumentItem {
   callout?: string;
   checklist?: ChecklistItem[];
   updatedAt: number;
+  userId?: string;
 }
 
-export const initialDocuments: DocumentItem[] = [
-  {
-    id: 'doc-1',
-    title: 'Daily Gratitude',
-    content:
-      'Today was surprisingly calm. I took time to breathe between lectures, sat in the campus garden, and noticed the autumn leaves falling.\n\nThree simple things that brought warmth today:\n1. A warm cup of chamomile tea before morning study.\n2. A friendly smile from a classmate in the library.\n3. The quiet 15 minutes of uninterrupted reading at sunset.',
-    date: 'October 24',
-    time: '9:42 AM',
-    wordCount: 142,
-    tags: ['✨ Gratitude', 'Reflection'],
-    category: 'pinned',
-    isPinned: true,
-    callout: 'Gratitude turns what we have into enough. Keep noticing the small anchors of peace.',
-    checklist: [
-      { id: 'c1', text: 'Drink 2L of water today', done: true },
-      { id: 'c2', text: '10-minute mindful breathing break', done: true },
-      { id: 'c3', text: 'Evening gratitude journaling', done: false },
-    ],
-    updatedAt: Date.now() - 3600000 * 4,
-  },
-  {
-    id: 'doc-2',
-    title: 'Exam Reflection',
-    content:
-      'Preparing for the upcoming assessments taught me that consistency matters more than last-minute cramming. I managed to review 3 modules with box-breathing breaks.\n\nKey takeaways:\n- Active recall works 10x better than passive re-reading.\n- 5-minute movement breaks keep energy levels steady.',
-    date: 'October 23',
-    time: '3:15 PM',
-    wordCount: 98,
-    tags: ['Study Logs', 'Reflection'],
-    category: 'study',
-    isPinned: true,
-    callout: 'Your pace is yours to honor. Progress over perfection every single day.',
-    checklist: [
-      { id: 'c4', text: 'Complete Chapter 4 practice test', done: true },
-      { id: 'c5', text: 'Summarize economics lecture notes', done: false },
-    ],
-    updatedAt: Date.now() - 86400000,
-  },
-  {
-    id: 'doc-3',
-    title: 'Morning Thoughts',
-    content:
-      'Woke up at 6:30 AM feeling refreshed. The early morning stillness is so restorative before notifications start rolling in.\n\nToday I choose to focus on single-tasking rather than juggling multiple browser tabs at once.',
-    date: 'October 22',
-    time: '7:10 AM',
-    wordCount: 75,
-    tags: ['Recent', 'Morning'],
-    category: 'recent',
-    isPinned: false,
-    callout: 'Start each morning with clarity, not hurry.',
-    checklist: [
-      { id: 'c6', text: 'Morning stretch & sunlight', done: true },
-      { id: 'c7', text: 'Plan top 3 daily priorities', done: true },
-    ],
-    updatedAt: Date.now() - 86400000 * 2,
-  },
-  {
-    id: 'doc-4',
-    title: 'Goals & Intentions',
-    content:
-      'Monthly wellness focus:\n- Prioritize 8 hours of sleep per night.\n- Maintain screen time under 3 hours daily.\n- Join 2 group wellness challenges with friends.\n- Complete assignments 24 hours prior to deadline.',
-    date: 'October 20',
-    time: '11:20 AM',
-    wordCount: 64,
-    tags: ['Study Logs', 'Goals'],
-    category: 'study',
-    isPinned: false,
-    callout: 'Goals give direction, but habits create the destination.',
-    checklist: [
-      { id: 'c8', text: 'Set phone bedtime schedule', done: true },
-      { id: 'c9', text: 'Sign up for community challenge', done: false },
-    ],
-    updatedAt: Date.now() - 86400000 * 4,
-  },
-  {
-    id: 'doc-5',
-    title: 'Unsent Letter',
-    content:
-      'Writing this down to let go of unresolved frustration. You do not have to carry what was never meant for you to hold onto.\n\nForgiving does not mean forgetting; it means liberating your own mental bandwidth for things that truly matter.',
-    date: 'October 18',
-    time: '8:45 PM',
-    wordCount: 88,
-    tags: ['Recent', 'Healing'],
-    category: 'recent',
-    isPinned: false,
-    callout: 'Release what no longer serves your growth and inner peace.',
-    checklist: [],
-    updatedAt: Date.now() - 86400000 * 6,
-  },
-];
+export const initialDocuments: DocumentItem[] = [];
 
-// Reactive in-memory store for instant state synchronization across screens
-let documentsStore: DocumentItem[] = [...initialDocuments];
+let documentsStore: DocumentItem[] = [];
 const listeners = new Set<() => void>();
 
 export const getDocuments = (): DocumentItem[] => documentsStore;
 
 export const getDocumentById = (id: string): DocumentItem | undefined =>
-  documentsStore.find(doc => doc.id === id);
+  documentsStore.find((d) => d.id === id);
 
-export const addDocument = (newDoc: DocumentItem): void => {
-  documentsStore = [newDoc, ...documentsStore];
-  listeners.forEach(listener => listener());
+export const addDocument = async (newDoc: DocumentItem): Promise<void> => {
+  const uid = auth.currentUser?.uid;
+  documentsStore = [newDoc, ...documentsStore.filter((d) => d.id !== newDoc.id)];
+  listeners.forEach((l) => l());
+
+  if (uid) {
+    try {
+      const docRef = doc(db, 'documents', newDoc.id);
+      await setDoc(docRef, {
+        ...newDoc,
+        userId: uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn('[Documents] Error saving document to Firestore:', err);
+    }
+  }
 };
 
-export const updateDocument = (
+export const updateDocument = async (
   id: string,
   updates: Partial<DocumentItem>
-): void => {
-  documentsStore = documentsStore.map(doc =>
-    doc.id === id
-      ? {
-          ...doc,
-          ...updates,
-          updatedAt: Date.now(),
-        }
-      : doc
+): Promise<void> => {
+  documentsStore = documentsStore.map((d) =>
+    d.id === id ? { ...d, ...updates, updatedAt: Date.now() } : d
   );
-  listeners.forEach(listener => listener());
+  listeners.forEach((l) => l());
+
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      const docRef = doc(db, 'documents', id);
+      await updateDoc(docRef, {
+        ...updates,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn('[Documents] Error updating document in Firestore:', err);
+    }
+  }
 };
 
-export const deleteDocument = (id: string): void => {
-  documentsStore = documentsStore.filter(doc => doc.id !== id);
-  listeners.forEach(listener => listener());
+export const deleteDocument = async (id: string): Promise<void> => {
+  documentsStore = documentsStore.filter((d) => d.id !== id);
+  listeners.forEach((l) => l());
+
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      const docRef = doc(db, 'documents', id);
+      await deleteDoc(docRef);
+    } catch (err) {
+      console.warn('[Documents] Error deleting document in Firestore:', err);
+    }
+  }
 };
 
 export const useDocumentsStore = (): DocumentItem[] => {
   const [docs, setDocs] = useState<DocumentItem[]>(documentsStore);
 
   useEffect(() => {
-    const handler = () => setDocs([...documentsStore]);
-    listeners.add(handler);
+    const uid = auth.currentUser?.uid;
+    if (!uid) {
+      setDocs(documentsStore);
+      return;
+    }
+
+    const colRef = collection(db, 'documents');
+    const q = query(colRef, where('userId', '==', uid));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const fetched: DocumentItem[] = snapshot.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            title: data.title || 'Untitled',
+            content: data.content || '',
+            date: data.date || '',
+            time: data.time || '',
+            wordCount: data.wordCount || 0,
+            tags: data.tags || [],
+            category: data.category || 'recent',
+            isPinned: !!data.isPinned,
+            callout: data.callout,
+            checklist: data.checklist || [],
+            updatedAt: data.updatedAt?.toMillis ? data.updatedAt.toMillis() : Date.now(),
+            userId: data.userId,
+          };
+        });
+
+        fetched.sort((a, b) => b.updatedAt - a.updatedAt);
+        documentsStore = fetched;
+        setDocs(fetched);
+      },
+      (error) => {
+        if (error.code !== 'permission-denied') {
+          console.warn('[Documents] Firestore subscription error:', error);
+        }
+      }
+    );
+
+    const memoryHandler = () => setDocs([...documentsStore]);
+    listeners.add(memoryHandler);
+
     return () => {
-      listeners.delete(handler);
+      unsubscribe();
+      listeners.delete(memoryHandler);
     };
   }, []);
 

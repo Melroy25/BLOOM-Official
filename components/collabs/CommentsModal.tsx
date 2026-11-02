@@ -35,6 +35,7 @@ interface CommentsModalProps {
   post: CommunityPost | null;
   onClose: () => void;
   onAddComment: (postId: string, text: string) => void;
+  onDeleteComment?: (postId: string, commentId: string) => void;
   currentUser?: UserProfile;
 }
 
@@ -45,6 +46,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
   post,
   onClose,
   onAddComment,
+  onDeleteComment,
   currentUser,
 }) => {
   const insets = useSafeAreaInsets();

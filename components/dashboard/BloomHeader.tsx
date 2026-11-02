@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Settings } from 'lucide-react-native';
 import { Spacing } from '../../constants/spacing';
 import { Shadows } from '../../constants/shadows';
+import { FontFamily } from '../../constants/typography';
 import { useTheme } from '../../context/ThemeContext';
 
 interface BloomHeaderProps {
@@ -110,6 +111,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoText: {
+    fontFamily: FontFamily.sansExtraBold,
     fontSize: 22,
     fontWeight: '800',
     letterSpacing: 3,
@@ -126,11 +128,13 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   greetingText: {
+    fontFamily: FontFamily.sansBold,
     fontSize: 24,
     fontWeight: '700',
     letterSpacing: -0.4,
   },
   subtitleText: {
+    fontFamily: FontFamily.sansRegular,
     fontSize: 14,
     fontWeight: '400',
     lineHeight: 20,

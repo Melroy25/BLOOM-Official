@@ -12,8 +12,10 @@ import {
   Dimensions,
   Modal,
   Image,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
 import {
   Menu,
   Send,
@@ -33,9 +35,16 @@ import {
   Paperclip,
   FileText,
   Image as ImageIcon,
+  Copy,
+  Check,
+  RotateCcw,
+  Globe,
+  Settings,
+  Edit2,
+  Trash2,
 } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
-import { Typography } from '../../constants/typography';
+import { Typography, FontFamily } from '../../constants/typography';
 import { Shadows } from '../../constants/shadows';
 import {
   MascotState,
@@ -51,11 +60,22 @@ import { AnimatedMascot } from '../../components/ai/AnimatedMascot';
 import { SidebarDrawer } from '../../components/ai/SidebarDrawer';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
-import { sendAIMessage } from '../../services/geminiService';
+import { sendAIMessage, regenerateAIMessage } from '../../services/geminiService';
+import {
+  SupportedLanguageCode,
+  LanguagePreference,
+  VoicePreference,
+  SupportedLanguage,
+  SpeechVoiceOption,
+} from '../../types';
+import { SUPPORTED_LANGUAGES_CATALOG } from '../../services/speechService';
 import {
   getUserAIConversations,
   createAIConversation,
   getAIMessages,
+  renameAIConversation,
+  deleteAIConversation,
+  updateUserPreferences,
 } from '../../services/firestoreService';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -88,6 +108,64 @@ export default function AICompanionScreen() {
   const [activeThreadId, setActiveThreadId] = useState<string>('checkin-1');
   const [isChatTyping, setIsChatTyping] = useState<boolean>(false);
   const chatScrollRef = useRef<any>(null);
+
+  // AbortController for Stop Generation
+  const activeAbortControllerRef = useRef<AbortController | null>(null);
+
+  // Language & Voice Preferences State
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguagePreference>({
+    code: 'en',
+    name: 'English',
+    nativeName: 'English',
+    locale: 'en-US',
+  });
+  const [voicePreference, setVoicePreference] = useState<VoicePreference>({
+    enabled: true,
+    rate: 0.95,
+    pitch: 1.08,
+  });
+  const [supportedLanguages, setSupportedLanguages] = useState<SupportedLanguage[]>([]);
+  const [availableVoices, setAvailableVoices] = useState<SpeechVoiceOption[]>([]);
+  const [isLanguageModalOpen, setIsLanguageModalOpen] = useState<boolean>(false);
+  const [prefTab, setPrefTab] = useState<'LANGUAGE' | 'VOICE'>('LANGUAGE');
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState<boolean>(false);
+
+  // Rename & Delete state
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState<boolean>(false);
+  const [renameTargetThread, setRenameTargetThread] = useState<ConversationThread | null>(null);
+  const [renameInputText, setRenameInputText] = useState<string>('');
+
+  // Copy toast state
+  const [copyToastText, setCopyToastText] = useState<string | null>(null);
+
+  // Load language & voice settings from userProfile
+  useEffect(() => {
+    if (userProfile?.languagePreference) {
+      setSelectedLanguage(userProfile.languagePreference);
+    }
+    if (userProfile?.voicePreference) {
+      setVoicePreference(userProfile.voicePreference);
+    }
+  }, [userProfile]);
+
+  // Inspect verified device voice support
+  useEffect(() => {
+    let isMounted = true;
+    async function loadVoices() {
+      try {
+        const langs = await speechService.getSupportedLanguages();
+        if (isMounted) setSupportedLanguages(langs);
+        const voices = await speechService.getVoicesForLanguage(selectedLanguage.code);
+        if (isMounted) setAvailableVoices(voices);
+      } catch (err) {
+        console.warn('[AI Screen] Error querying voices:', err);
+      }
+    }
+    loadVoices();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedLanguage.code]);
 
   // Load user conversations from Firestore when user changes
   useEffect(() => {
@@ -315,6 +393,8 @@ export default function AICompanionScreen() {
     }));
 
     try {
+      const controller = new AbortController();
+      activeAbortControllerRef.current = controller;
       const response = await sendAIMessage({
         conversationId: convId,
         userId: user?.uid || 'anonymous',
@@ -322,6 +402,8 @@ export default function AICompanionScreen() {
         attachment: attachment || undefined,
         userProfile,
         history,
+        languageCode: selectedLanguage.code,
+        abortSignal: controller.signal,
       });
 
       setVoiceResponseText(response.text);
@@ -351,21 +433,28 @@ export default function AICompanionScreen() {
         ];
       });
 
-      if (isVoiceMode) {
+      if (isVoiceMode && voicePreference.enabled) {
         await speechService.speak(
           response.text,
-          () => {
-            setMascotState('SPEAKING');
-          },
-          () => {
-            setMascotState('HAPPY');
-            setTimeout(() => setMascotState('IDLE'), 2200);
-          },
-          (err) => {
-            console.warn('[AI Screen] Speech playback note:', err);
-            setMascotState('HAPPY');
-            setTimeout(() => setMascotState('IDLE'), 1800);
-            setSpeechError('Audio tap required by browser. Tap replay.');
+          {
+            language: selectedLanguage.locale,
+            voiceIdentifier: voicePreference.voiceIdentifier,
+            rate: voicePreference.rate,
+            pitch: voicePreference.pitch,
+            enabled: voicePreference.enabled,
+            onStart: () => {
+              setMascotState('SPEAKING');
+            },
+            onDone: () => {
+              setMascotState('HAPPY');
+              setTimeout(() => setMascotState('IDLE'), 2200);
+            },
+            onError: (err) => {
+              console.warn('[AI Screen] Speech playback note:', err);
+              setMascotState('HAPPY');
+              setTimeout(() => setMascotState('IDLE'), 1800);
+              setSpeechError('Audio tap required by browser. Tap replay.');
+            },
           }
         );
       } else {
@@ -500,6 +589,197 @@ export default function AICompanionScreen() {
       processVoiceMessage(text);
     } else {
       processChatMessage(text);
+    }
+  };
+
+
+  // Stop ongoing AI Generation
+  const handleStopGeneration = () => {
+    if (activeAbortControllerRef.current) {
+      activeAbortControllerRef.current.abort();
+      activeAbortControllerRef.current = null;
+    }
+    setIsChatTyping(false);
+    setMascotState('IDLE');
+  };
+
+  // Copy AI response text to clipboard
+  const handleCopyMessage = async (text: string) => {
+    try {
+      await Clipboard.setStringAsync(text);
+      setCopyToastText('Copied response to clipboard');
+      setTimeout(() => setCopyToastText(null), 2200);
+    } catch {}
+  };
+
+  // Retry failed AI response
+  const handleRetryMessage = async (failedMsg: ChatMessage) => {
+    if (isChatTyping) return;
+    const lastUserMsg = [...currentThread.messages].reverse().find((m) => m.sender === 'user');
+    if (!lastUserMsg) return;
+
+    setIsChatTyping(true);
+    setMascotState('THINKING');
+    const controller = new AbortController();
+    activeAbortControllerRef.current = controller;
+
+    try {
+      const history = currentThread.messages.slice(-6).map((m) => ({
+        role: m.sender === 'user' ? ('user' as const) : ('model' as const),
+        parts: [{ text: m.text }],
+      }));
+
+      const response = await sendAIMessage({
+        conversationId: activeThreadId,
+        userId: user?.uid || 'anonymous',
+        userText: lastUserMsg.text,
+        userProfile,
+        history,
+        languageCode: selectedLanguage.code,
+        abortSignal: controller.signal,
+        skipUserSave: true,
+      });
+
+      setThreads((prev) =>
+        prev.map((t) =>
+          t.id === activeThreadId
+            ? {
+                ...t,
+                messages: t.messages.map((m) => (m.id === failedMsg.id ? response : m)),
+              }
+            : t
+        )
+      );
+    } catch {
+      // Handled inside sendAIMessage
+    } finally {
+      setIsChatTyping(false);
+      setMascotState('IDLE');
+    }
+  };
+
+  // Regenerate last AI response
+  const handleRegenerateLastResponse = async () => {
+    if (isChatTyping) return;
+    const lastUserMsg = [...currentThread.messages].reverse().find((m) => m.sender === 'user');
+    if (!lastUserMsg) return;
+
+    setIsChatTyping(true);
+    setMascotState('THINKING');
+    const controller = new AbortController();
+    activeAbortControllerRef.current = controller;
+
+    try {
+      const history = currentThread.messages.slice(-6).map((m) => ({
+        role: m.sender === 'user' ? ('user' as const) : ('model' as const),
+        parts: [{ text: m.text }],
+      }));
+
+      const response = await regenerateAIMessage({
+        conversationId: activeThreadId,
+        userId: user?.uid || 'anonymous',
+        userText: lastUserMsg.text,
+        userProfile,
+        history,
+        languageCode: selectedLanguage.code,
+        abortSignal: controller.signal,
+      });
+
+      setThreads((prev) =>
+        prev.map((t) => (t.id === activeThreadId ? { ...t, messages: [...t.messages, response] } : t))
+      );
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.warn('[AI Screen] Regenerate error:', err);
+      }
+    } finally {
+      setIsChatTyping(false);
+      setMascotState('IDLE');
+      activeAbortControllerRef.current = null;
+    }
+  };
+
+  // Open Rename modal
+  const handleOpenRename = (thread: ConversationThread) => {
+    setRenameTargetThread(thread);
+    setRenameInputText(thread.title);
+    setIsRenameModalOpen(true);
+  };
+
+  // Save conversation title
+  const handleSaveRename = async () => {
+    if (!renameTargetThread || !renameInputText.trim()) return;
+    const newTitle = renameInputText.trim();
+    try {
+      await renameAIConversation(renameTargetThread.id, newTitle);
+      setThreads((prev) =>
+        prev.map((t) => (t.id === renameTargetThread.id ? { ...t, title: newTitle } : t))
+      );
+    } catch (e) {
+      console.warn('[AI Screen] Could not rename conversation:', e);
+    } finally {
+      setIsRenameModalOpen(false);
+      setRenameTargetThread(null);
+    }
+  };
+
+  // Delete conversation thread
+  const handleDeleteThread = (thread: ConversationThread) => {
+    Alert.alert(
+      'Delete Conversation',
+      `Are you sure you want to delete "${thread.title}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteAIConversation(thread.id);
+              setThreads((prev) => {
+                const remaining = prev.filter((t) => t.id !== thread.id);
+                if (activeThreadId === thread.id && remaining.length > 0) {
+                  setActiveThreadId(remaining[0].id);
+                }
+                return remaining;
+              });
+            } catch (e) {
+              console.warn('[AI Screen] Could not delete conversation:', e);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Save selected language to Firestore
+  const handleSelectLanguage = async (lang: SupportedLanguage) => {
+    const newPref: LanguagePreference = {
+      code: lang.code,
+      name: lang.name,
+      nativeName: lang.nativeName,
+      locale: lang.locale,
+    };
+    setSelectedLanguage(newPref);
+    setIsLanguageModalOpen(false);
+
+    try {
+      const voices = await speechService.getVoicesForLanguage(lang.code);
+      setAvailableVoices(voices);
+      if (user?.uid) {
+        await updateUserPreferences(user.uid, { languagePreference: newPref });
+      }
+    } catch (err) {
+      console.warn('[AI Screen] Preference update error:', err);
+    }
+  };
+
+  // Save voice settings to Firestore
+  const handleUpdateVoicePreference = async (updated: Partial<VoicePreference>) => {
+    const merged: VoicePreference = { ...voicePreference, ...updated };
+    setVoicePreference(merged);
+    if (user?.uid) {
+      await updateUserPreferences(user.uid, { voicePreference: merged }).catch(() => {});
     }
   };
 
@@ -738,8 +1018,20 @@ export default function AICompanionScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Right: Speaker Audio Toggle (in Voice mode) or New Chat Button (in Chat mode) */}
+            {/* Right: Audio Toggle/New Chat + Dedicated Language & Voice Settings */}
             <View style={styles.topRightControls}>
+              <TouchableOpacity
+                style={[styles.topButton, Shadows.sm]}
+                onPress={() => {
+                  setPrefTab('LANGUAGE');
+                  setIsLanguageModalOpen(true);
+                }}
+                activeOpacity={0.7}
+                accessibilityLabel="Language and Voice Settings"
+              >
+                <Globe size={18} color={Colors.primaryDark} strokeWidth={2.2} />
+              </TouchableOpacity>
+
               {companionMode === 'VOICE' ? (
                 <TouchableOpacity
                   style={[
@@ -805,6 +1097,23 @@ export default function AICompanionScreen() {
                 }}
               />
             </View>
+
+            {/* Clearly Identifiable Voice Bot Language & Voice Shortcut */}
+            <TouchableOpacity
+              style={styles.voiceModeLangShortcut}
+              onPress={() => {
+                setPrefTab('VOICE');
+                setIsLanguageModalOpen(true);
+              }}
+              activeOpacity={0.8}
+              accessibilityLabel="Change voice or language"
+            >
+              <Globe size={13} color={Colors.primaryDark} strokeWidth={2.2} />
+              <Text style={styles.voiceModeLangShortcutText}>
+                {selectedLanguage.nativeName} ({selectedLanguage.name}) • Voice Settings
+              </Text>
+              <Settings size={12} color={Colors.mutedText} />
+            </TouchableOpacity>
 
             {/* Floating Speech Transcript Card (Active only when bot speaks) */}
             {voiceResponseText && (
@@ -1014,14 +1323,56 @@ export default function AICompanionScreen() {
                       </View>
 
                       {/* Timestamp */}
-                      <Text
-                        style={[
-                          styles.msgTimestamp,
-                          isUser ? styles.msgTimestampUser : styles.msgTimestampAI,
-                        ]}
-                      >
-                        {msg.timestamp}
-                      </Text>
+                      <View style={styles.msgFooterRow}>
+                        <Text
+                          style={[
+                            styles.msgTimestamp,
+                            isUser ? styles.msgTimestampUser : styles.msgTimestampAI,
+                          ]}
+                        >
+                          {msg.timestamp}
+                        </Text>
+                        {!isUser && (
+                          <View style={styles.msgActionButtons}>
+                            {msg.source === 'offline_fallback' && (
+                              <View style={styles.offlineNoticeBadge}>
+                                <Text style={styles.offlineNoticeBadgeText}>Offline Reflection</Text>
+                              </View>
+                            )}
+                            <TouchableOpacity
+                              style={styles.msgActionIconBtn}
+                              onPress={() => handleCopyMessage(msg.text)}
+                              activeOpacity={0.7}
+                              accessibilityLabel="Copy response"
+                            >
+                              <Copy size={13} color={Colors.mutedText} strokeWidth={2} />
+                            </TouchableOpacity>
+
+                            {currentThread.messages[currentThread.messages.length - 1]?.id === msg.id && (
+                              <TouchableOpacity
+                                style={styles.msgActionIconBtn}
+                                onPress={handleRegenerateLastResponse}
+                                activeOpacity={0.7}
+                                accessibilityLabel="Regenerate response"
+                              >
+                                <RotateCcw size={13} color={Colors.mutedText} strokeWidth={2} />
+                              </TouchableOpacity>
+                            )}
+
+                            {(msg.isFailed || msg.canRetry) && (
+                              <TouchableOpacity
+                                style={[styles.msgActionIconBtn, { backgroundColor: '#FBEBEB', borderColor: '#F2B8B8', paddingHorizontal: 6 }]}
+                                onPress={() => handleRetryMessage(msg)}
+                                activeOpacity={0.7}
+                                accessibilityLabel="Retry with Gemini"
+                              >
+                                <RotateCcw size={12} color="#C45A5A" strokeWidth={2.2} />
+                                <Text style={styles.retryBtnText}>Retry</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        )}
+                      </View>
 
                       {/* Quick Reply Suggestions */}
                       {msg.quickReplies && msg.quickReplies.length > 0 && (
@@ -1043,7 +1394,7 @@ export default function AICompanionScreen() {
                 );
               })}
 
-              {/* Chat Thinking Indicator */}
+              {/* Chat Thinking Indicator with Stop Button */}
               {isChatTyping && (
                 <View style={[styles.msgRow, styles.msgRowAI]}>
                   <View style={styles.msgAvatarWrapper}>
@@ -1055,6 +1406,14 @@ export default function AICompanionScreen() {
                   </View>
                   <View style={[styles.msgBubble, styles.msgBubbleAI, styles.typingBubble, Shadows.sm]}>
                     <Text style={styles.typingText}>Bloom is reflecting...</Text>
+                    <TouchableOpacity
+                      style={styles.stopReflectingBtn}
+                      onPress={() => activeAbortControllerRef.current?.abort()}
+                      activeOpacity={0.7}
+                    >
+                      <Square size={10} color="#BA4A4A" fill="#BA4A4A" />
+                      <Text style={styles.stopReflectingText}>Stop</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               )}
@@ -1188,9 +1547,13 @@ export default function AICompanionScreen() {
         }}
         onNewChat={handleNewChat}
         onSelectThread={handleSelectThread}
+        onRenameThread={handleOpenRename}
+        onDeleteThread={handleDeleteThread}
+        onOpenPreferences={() => setIsLanguageModalOpen(true)}
         activeMode={companionMode}
         activeThreadId={activeThreadId}
         threads={threads}
+        userProfile={userProfile}
       />
 
       {/* Attachment Option Sheet Modal (ChatGPT-like options) */}
@@ -1338,11 +1701,655 @@ export default function AICompanionScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Toast Notification */}
+      {copyToastText && (
+        <View style={styles.toastCard}>
+          <Check size={14} color="#FFFFFF" strokeWidth={2.4} />
+          <Text style={styles.toastText}>{copyToastText}</Text>
+        </View>
+      )}
+
+      {/* Stop Generation Floating Pill */}
+      {isChatTyping && (
+        <View style={styles.stopGenerationWrapper}>
+          <TouchableOpacity
+            style={styles.stopGenerationBtn}
+            onPress={handleStopGeneration}
+            activeOpacity={0.8}
+          >
+            <Square size={13} color="#BA4A4A" fill="#BA4A4A" />
+            <Text style={styles.stopGenerationText}>Stop generation</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* RENAME CONVERSATION MODAL */}
+      <Modal
+        visible={isRenameModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsRenameModalOpen(false)}
+      >
+        <View style={styles.prefModalBackdrop}>
+          <View style={styles.renameModalCard}>
+            <Text style={styles.renameTitle}>Rename Conversation</Text>
+            <TextInput
+              style={styles.renameInput}
+              value={renameInputText}
+              onChangeText={setRenameInputText}
+              placeholder="Enter new conversation title"
+              autoFocus
+            />
+            <View style={styles.renameActions}>
+              <TouchableOpacity
+                style={styles.renameCancelBtn}
+                onPress={() => setIsRenameModalOpen(false)}
+              >
+                <Text style={styles.renameCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.renameSaveBtn}
+                onPress={handleSaveRename}
+              >
+                <Text style={styles.renameSaveText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* UNIFIED LANGUAGE & VOICE PREFERENCES MODAL */}
+      <Modal
+        visible={isLanguageModalOpen || isVoiceModalOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setIsLanguageModalOpen(false);
+          setIsVoiceModalOpen(false);
+        }}
+      >
+        <View style={styles.prefModalBackdrop}>
+          <View style={styles.prefModalSheet}>
+            <View style={styles.prefHeader}>
+              <View>
+                <Text style={styles.prefTitle}>Language & Voice Settings</Text>
+                <Text style={styles.prefSub}>
+                  Configure multilingual responses, speech pacing, and device voices
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setIsLanguageModalOpen(false);
+                  setIsVoiceModalOpen(false);
+                }}
+                style={styles.prefCloseBtn}
+              >
+                <X size={18} color={Colors.darkText} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Segmented Tabs: Language vs Voice */}
+            <View style={styles.prefTabsRow}>
+              <TouchableOpacity
+                style={[styles.prefTabBtn, prefTab === 'LANGUAGE' && styles.prefTabBtnActive]}
+                onPress={() => setPrefTab('LANGUAGE')}
+                activeOpacity={0.8}
+              >
+                <Globe size={14} color={prefTab === 'LANGUAGE' ? Colors.primaryDark : Colors.mutedText} />
+                <Text style={[styles.prefTabBtnText, prefTab === 'LANGUAGE' && styles.prefTabBtnTextActive]}>
+                  Language ({selectedLanguage.nativeName})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.prefTabBtn, prefTab === 'VOICE' && styles.prefTabBtnActive]}
+                onPress={() => setPrefTab('VOICE')}
+                activeOpacity={0.8}
+              >
+                <Volume2 size={14} color={prefTab === 'VOICE' ? Colors.primaryDark : Colors.mutedText} />
+                <Text style={[styles.prefTabBtnText, prefTab === 'VOICE' && styles.prefTabBtnTextActive]}>
+                  Voice & Pacing
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {prefTab === 'LANGUAGE' ? (
+              <ScrollView style={{ maxHeight: 330, marginTop: 10 }}>
+                {SUPPORTED_LANGUAGES_CATALOG.map((lang) => {
+                  const isSelected = selectedLanguage.code === lang.code;
+                  const suppInfo = supportedLanguages.find((s) => s.code === lang.code);
+                  const hasVoice = suppInfo?.isVoiceSupported ?? (lang.code === 'en');
+
+                  return (
+                    <TouchableOpacity
+                      key={lang.code}
+                      style={[
+                        styles.langOptionCard,
+                        isSelected && styles.langOptionCardActive,
+                      ]}
+                      onPress={() => {
+                        handleSelectLanguage({
+                          code: lang.code,
+                          name: lang.name,
+                          nativeName: lang.nativeName,
+                          locale: lang.defaultLocale,
+                          isVoiceSupported: hasVoice,
+                          availableVoicesCount: suppInfo?.availableVoicesCount || 0,
+                        });
+                        setPrefTab('VOICE');
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={[
+                            styles.langOptionName,
+                            isSelected && { color: Colors.primaryDark, fontWeight: '700' },
+                          ]}
+                        >
+                          {lang.nativeName} ({lang.name})
+                        </Text>
+                        <Text style={styles.langOptionVoiceStatus}>
+                          {hasVoice ? '✓ Voice & text companion active' : '• Text companion active (Voice engine optional)'}
+                        </Text>
+                      </View>
+                      {isSelected && (
+                        <Check size={18} color={Colors.primary} strokeWidth={2.4} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            ) : (
+              <ScrollView style={{ maxHeight: 340, marginTop: 10 }}>
+                <View style={styles.voiceSectionRow}>
+                  <Text style={styles.voiceSectionLabel}>Bot Spoken Responses</Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.togglePill,
+                      voicePreference.enabled && styles.togglePillActive,
+                    ]}
+                    onPress={() => handleUpdateVoicePreference({ enabled: !voicePreference.enabled })}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.togglePillText, voicePreference.enabled && { color: '#FFFFFF' }]}>
+                      {voicePreference.enabled ? 'Enabled' : 'Muted'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={[styles.voiceSectionLabel, { marginTop: 12 }]}>Speaking Pacing & Speed</Text>
+                <View style={styles.rateOptionsRow}>
+                  {[
+                    { label: '0.8x Gentle', rate: 0.8 },
+                    { label: '1.0x Normal', rate: 1.0 },
+                    { label: '1.2x Brisk', rate: 1.2 },
+                  ].map((opt) => (
+                    <TouchableOpacity
+                      key={opt.label}
+                      style={[
+                        styles.rateBtn,
+                        voicePreference.rate === opt.rate && styles.rateBtnActive,
+                      ]}
+                      onPress={() => handleUpdateVoicePreference({ rate: opt.rate })}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.rateBtnText,
+                          voicePreference.rate === opt.rate && { color: Colors.primaryDark, fontWeight: '700' },
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={[styles.voiceSectionLabel, { marginTop: 12 }]}>
+                  Device Voices for {selectedLanguage.name} ({selectedLanguage.nativeName})
+                </Text>
+                {availableVoices.length === 0 ? (
+                  <View style={styles.noVoicesBox}>
+                    <Text style={styles.noVoicesText}>
+                      No specific device TTS voice package found for {selectedLanguage.name}. Default system voice will be used.
+                    </Text>
+                    <Text style={styles.noVoicesHelp}>
+                      To install native device voices: Go to System Settings &gt; Accessibility / Languages &gt; Text-to-speech output &gt; Install voice data.
+                    </Text>
+                  </View>
+                ) : (
+                  availableVoices.map((v) => {
+                    const isSelected = voicePreference.voiceIdentifier === v.identifier;
+                    return (
+                      <TouchableOpacity
+                        key={v.identifier}
+                        style={[
+                          styles.voiceItemCard,
+                          isSelected && styles.voiceItemCardActive,
+                        ]}
+                        onPress={() => handleUpdateVoicePreference({ voiceIdentifier: v.identifier, voiceName: v.name })}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.voiceItemName, isSelected && { color: Colors.primaryDark, fontWeight: '700' }]}>
+                          {v.name}
+                        </Text>
+                        {isSelected && <Check size={16} color={Colors.primary} strokeWidth={2.4} />}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+
+                <TouchableOpacity
+                  style={styles.testVoiceBtn}
+                  onPress={() => {
+                    const sampleGreetings: Record<string, string> = {
+                      kn: 'ನಮಸ್ಕಾರ, ನಾನು ಬ್ಲೂಮ್. ನಿಮ್ಮ ಯೋಗಕ್ಷೇಮ ಸಹಚರ.',
+                      hi: 'नमस्ते, मैं ब्लूम हूँ। आपका वेलनेस साथी।',
+                      ml: 'നമസ്കാരം, ഞാൻ ബ്ലൂം. നിങ്ങളുടെ വെൽനസ് കൂട്ടുകാരൻ.',
+                      ta: 'வணக்கம், நான் ப்ளூம். உங்கள் நல்வாழ்வு தோழன்.',
+                      te: 'నమస్కారం, నేను బ్లూమ్. మీ వెల్నెస్ స్నేహితుడిని.',
+                      en: 'Hello, I am Bloom. Your mindful student companion.',
+                    };
+                    speechService.speak(
+                      sampleGreetings[selectedLanguage.code] || sampleGreetings.en,
+                      {
+                        language: selectedLanguage.locale,
+                        voiceIdentifier: voicePreference.voiceIdentifier,
+                        rate: voicePreference.rate,
+                        pitch: voicePreference.pitch,
+                        enabled: true,
+                      }
+                    );
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Volume2 size={15} color="#FFFFFF" strokeWidth={2} />
+                  <Text style={styles.testVoiceText}>Listen to Sample Voice ({selectedLanguage.nativeName})</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  voiceModeLangShortcut: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2EBE0',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    marginTop: 8,
+    alignSelf: 'center',
+  },
+  voiceModeLangShortcutText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#204731',
+  },
+  prefTabsRow: {
+    flexDirection: 'row',
+    backgroundColor: '#EAEFEA',
+    borderRadius: 8,
+    padding: 3,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  prefTabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 7,
+    borderRadius: 6,
+  },
+  prefTabBtnActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  prefTabBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#617364',
+  },
+  prefTabBtnTextActive: {
+    color: '#204731',
+    fontWeight: '700',
+  },
+  noVoicesBox: {
+    backgroundColor: '#F8FAF8',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2EBE0',
+    padding: 10,
+    marginTop: 6,
+    marginBottom: 8,
+  },
+  noVoicesHelp: {
+    fontSize: 10.5,
+    color: '#7A8B7B',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  offlineNoticeBadge: {
+    backgroundColor: '#F0F4F0',
+    borderWidth: 1,
+    borderColor: '#D4E2D5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  offlineNoticeBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#365B45',
+  },
+  stopReflectingBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FBEBEB',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginLeft: 10,
+  },
+  stopReflectingText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#BA4A4A',
+  },
+  retryBtnText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#C45A5A',
+    marginLeft: 3,
+  },
+
+  langPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2EBE0',
+  },
+  langPillText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: Colors.primaryDark,
+  },
+  voicePrefBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2EBE0',
+  },
+  msgFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 2,
+  },
+  msgActionButtons: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingRight: 4,
+  },
+  msgActionIconBtn: {
+    padding: 3,
+  },
+  toastCard: {
+    position: 'absolute',
+    top: 70,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(32, 71, 49, 0.92)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    zIndex: 9999,
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  stopGenerationWrapper: {
+    position: 'absolute',
+    bottom: 84,
+    alignSelf: 'center',
+    zIndex: 999,
+  },
+  stopGenerationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E0DDD5',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  stopGenerationText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#BA4A4A',
+  },
+  prefModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  prefModalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 36,
+  },
+  prefHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  prefTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: Colors.darkText,
+  },
+  prefSub: {
+    fontSize: 12,
+    color: Colors.mutedText,
+    marginTop: 2,
+  },
+  prefCloseBtn: {
+    padding: 4,
+  },
+  langOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2EBE0',
+    marginBottom: 8,
+  },
+  langOptionCardActive: {
+    borderColor: Colors.primary,
+    backgroundColor: '#F3F7F2',
+  },
+  langOptionName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.darkText,
+  },
+  langOptionVoiceStatus: {
+    fontSize: 11,
+    color: Colors.mutedText,
+    marginTop: 2,
+  },
+  voiceSectionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  voiceSectionLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.mutedText,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  togglePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: '#EBEBEB',
+  },
+  togglePillActive: {
+    backgroundColor: Colors.primary,
+  },
+  togglePillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#666666',
+  },
+  rateOptionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 6,
+  },
+  rateBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2EBE0',
+    alignItems: 'center',
+  },
+  rateBtnActive: {
+    borderColor: Colors.primary,
+    backgroundColor: '#F3F7F2',
+  },
+  rateBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: Colors.darkText,
+  },
+  voiceItemCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2EBE0',
+    marginBottom: 6,
+  },
+  voiceItemCardActive: {
+    borderColor: Colors.primary,
+    backgroundColor: '#F3F7F2',
+  },
+  voiceItemName: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: Colors.darkText,
+  },
+  noVoicesText: {
+    fontSize: 12,
+    color: Colors.mutedText,
+    fontStyle: 'italic',
+    paddingVertical: 6,
+  },
+  testVoiceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 16,
+  },
+  testVoiceText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  renameModalCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 30,
+    borderRadius: 14,
+    padding: 20,
+    alignSelf: 'center',
+    width: '85%',
+  },
+  renameTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.darkText,
+    marginBottom: 12,
+  },
+  renameInput: {
+    borderWidth: 1,
+    borderColor: '#D4DDD3',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  renameActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+  renameCancelBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  renameCancelText: {
+    color: Colors.mutedText,
+    fontWeight: '600',
+  },
+  renameSaveBtn: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  renameSaveText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.background, // Exact warm botanical cream #FAF8F2
@@ -1629,7 +2636,7 @@ const styles = StyleSheet.create({
     color: Colors.darkText,
   },
   msgTimestamp: {
-    ...Typography.caption,
+    fontFamily: FontFamily.monoMedium,
     fontSize: 10,
     color: Colors.mutedText,
     marginTop: 3,

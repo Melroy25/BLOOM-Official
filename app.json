@@ -55,6 +55,8 @@
         }
       ],
       "expo-asset",
+      "expo-sharing",
+      "expo-font",
       [
         "react-native-android-widget",
         {

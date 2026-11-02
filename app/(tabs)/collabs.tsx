@@ -3,6 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CheckCircle2 } from 'lucide-react-native';
@@ -43,19 +44,19 @@ import {
   createFirestorePost,
   toggleFirestorePostLike,
   addFirestorePostComment,
+  deleteFirestorePostComment,
+  deleteFirestorePost,
+  reportFirestorePost,
   subscribeToGlobalChatMessages,
   sendFirestoreChatMessage,
+  createFirestoreChatPoll,
+  voteFirestoreChatPoll,
+  toggleFirestoreChatReaction,
+  deleteFirestoreChatMessage,
   updateUserProfile,
 } from '../../services/firestoreService';
+import { uploadCommunityImage } from '../../services/firebaseStorageService';
 
-// Mock Data & Types
-import {
-  sampleDiscover as initialDiscover,
-  initialChallenges,
-  trendingDiscussions as initialDiscussions,
-  initialGlobalChatMessages,
-  initialCommunityPosts,
-} from '../../data/collabsMockData';
 import {
   CircleScreenView,
   UserProfile,
@@ -77,14 +78,14 @@ export default function CollabsScreen() {
   // Dynamic user profile derived from authenticated user
   const [userChallengesCount, setUserChallengesCount] = useState<number>(0);
 
-  // Lists & State
+  // Lists & State (Zero Mock Data: Initialized to Empty Arrays)
   const [friends, setFriends] = useState<UserProfile[]>([]);
   const [requests, setRequests] = useState<UserProfile[]>([]);
-  const [suggestions, setSuggestions] = useState<UserProfile[]>(initialDiscover);
-  const [challenges, setChallenges] = useState<Challenge[]>(initialChallenges);
-  const [discussions, setDiscussions] = useState<TrendingDiscussion[]>(initialDiscussions);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(initialGlobalChatMessages);
-  const [posts, setPosts] = useState<CommunityPost[]>(initialCommunityPosts);
+  const [suggestions, setSuggestions] = useState<UserProfile[]>([]);
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [discussions, setDiscussions] = useState<TrendingDiscussion[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [posts, setPosts] = useState<CommunityPost[]>([]);
 
   // Authenticated Current User State
   const currentInitials = (userProfile?.fullName || user?.displayName || 'BM')
@@ -238,11 +239,7 @@ export default function CollabsScreen() {
         // 4. Load Discover Users from Firestore
         const discoverUsers = await getDiscoverUsers(currentUid, excludeUids);
         if (isMounted) {
-          if (discoverUsers.length > 0) {
-            setSuggestions(discoverUsers);
-          } else {
-            setSuggestions(initialDiscover.filter(s => !excludeUids.includes(s.id) && s.id !== currentUid));
-          }
+          setSuggestions(discoverUsers);
         }
 
         // 5. Load User Challenges count
@@ -251,15 +248,15 @@ export default function CollabsScreen() {
           setUserChallengesCount(count);
         }
 
-        // 6. Load Public Challenges
-        const publicChallenges = await getPublicChallenges('All', '', 'popular');
-        if (isMounted && publicChallenges.length > 0) {
+        // 6. Load Public Challenges from Firestore (Zero hardcoded numbers)
+        const publicChallenges = await getPublicChallenges('All', '', 'popular', currentUid);
+        if (isMounted) {
           setChallenges(publicChallenges);
         }
 
-        // 7. Load Community Posts
+        // 7. Load Community Posts from Firestore
         const firestorePosts = await getFirestoreCommunityPosts(currentUid);
-        if (isMounted && firestorePosts.length > 0) {
+        if (isMounted) {
           setPosts(firestorePosts);
         }
       } catch (err) {
@@ -269,9 +266,9 @@ export default function CollabsScreen() {
 
     loadSocialData();
 
-    // 8. Subscribe to Global Chat messages
+    // 8. Subscribe to Global Chat messages (Live onSnapshot)
     const unsubscribeChat = subscribeToGlobalChatMessages(currentUid, (msgs) => {
-      if (isMounted && msgs.length > 0) {
+      if (isMounted) {
         setChatMessages(msgs);
       }
     });
@@ -367,77 +364,72 @@ export default function CollabsScreen() {
       audioNote?: { duration: string };
     }
   ) => {
-    const userMsg: ChatMessage = {
-      id: `chat_${Date.now()}`,
-      senderId: currentUser.id,
-      senderName: 'You',
-      senderHandle: currentUser.handle,
-      senderInitials: currentUser.initials,
-      text,
-      image: media?.image,
-      video: media?.video,
-      fileDoc: media?.fileDoc,
-      audioNote: media?.audioNote,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isMe: true,
-    };
-
-    setChatMessages(prev => [...prev, userMsg]);
-
-    if (user?.uid) {
-      try {
-        await sendFirestoreChatMessage({
-          senderId: user.uid,
-          senderName: currentUser.name,
-          senderHandle: currentUser.handle,
-          text,
-          image: media?.image,
-          video: media?.video,
-          fileDoc: media?.fileDoc,
-          audioNote: media?.audioNote,
-        });
-      } catch (err) {
-        console.warn('[Collabs] Error sending chat message to Firestore:', err);
-      }
+    if (!user?.uid) {
+      showToast('Please sign in to send messages');
+      return;
     }
-  }, [currentUser, user?.uid]);
+
+    try {
+      await sendFirestoreChatMessage({
+        senderId: user.uid,
+        senderName: currentUser.name,
+        senderHandle: currentUser.handle,
+        text,
+        image: media?.image,
+        video: media?.video,
+        fileDoc: media?.fileDoc,
+        audioNote: media?.audioNote,
+      });
+    } catch (err: any) {
+      console.warn('[Collabs] Error sending chat message:', err);
+      showToast('Could not send message. Please retry.');
+    }
+  }, [currentUser, user?.uid, showToast]);
 
   const handleClearChat = useCallback(() => {
     setChatMessages([]);
-    showToast('Chat history cleared 🧹');
+    showToast('Chat view cleared 🧹');
   }, [showToast]);
 
   const handleDeleteMessageFromAll = useCallback(() => {
     setChatMessages([]);
-    showToast('Messages deleted for everyone 🗑️');
+    showToast('Messages view reset');
   }, [showToast]);
 
-  const handleDeleteSingleMessage = useCallback((messageId: string) => {
-    setChatMessages(prev => prev.filter(m => m.id !== messageId));
-    showToast('Message deleted 🗑️');
-  }, [showToast]);
+  const handleDeleteSingleMessage = useCallback(async (messageId: string) => {
+    if (!user?.uid) return;
+    try {
+      await deleteFirestoreChatMessage(messageId, user.uid);
+      setChatMessages(prev => prev.filter(m => m.id !== messageId));
+      showToast('Message deleted 🗑️');
+    } catch (err: any) {
+      showToast(err?.message || 'Could not delete message');
+    }
+  }, [user?.uid, showToast]);
 
-  const handleVotePoll = useCallback((messageId: string, optionId: string) => {
+  const handleVotePoll = useCallback(async (messageId: string, optionId: string) => {
+    if (!user?.uid) {
+      showToast('Please sign in to vote');
+      return;
+    }
+
+    // Optimistic UI update
     setChatMessages(prev =>
       prev.map(msg => {
         if (msg.id === messageId && msg.poll) {
-          const prevVoted = msg.poll.userVotedOptionId;
+          if (msg.poll.userVotedOptionId) return msg; // Prevent duplicate vote
           const options = msg.poll.options.map(opt => {
             if (opt.id === optionId) {
-              return { ...opt, votes: prevVoted === optionId ? opt.votes : opt.votes + 1 };
-            }
-            if (opt.id === prevVoted) {
-              return { ...opt, votes: Math.max(0, opt.votes - 1) };
+              return { ...opt, votes: opt.votes + 1 };
             }
             return opt;
           });
-          const totalVotes = options.reduce((sum, o) => sum + o.votes, 0);
           return {
             ...msg,
             poll: {
               ...msg.poll,
               options,
-              totalVotes,
+              totalVotes: msg.poll.totalVotes + 1,
               userVotedOptionId: optionId,
             },
           };
@@ -445,69 +437,58 @@ export default function CollabsScreen() {
         return msg;
       })
     );
-    showToast('Vote recorded! 📊✨');
-  }, [showToast]);
 
-  const handleReactChatMessage = useCallback((messageId: string, emoji: string) => {
-    setChatMessages(prev =>
-      prev.map(msg => {
-        if (msg.id === messageId) {
-          const reactions = { ...(msg.reactions || {}) };
-          const myReactions = [...(msg.myReactions || [])];
-          const hasReacted = myReactions.includes(emoji);
+    try {
+      await voteFirestoreChatPoll(messageId, user.uid, optionId);
+      showToast('Vote recorded! 📊✨');
+    } catch (err) {
+      console.warn('[Collabs] Error recording vote:', err);
+    }
+  }, [user?.uid, showToast]);
 
-          if (hasReacted) {
-            reactions[emoji] = Math.max(0, (reactions[emoji] || 1) - 1);
-            if (reactions[emoji] === 0) delete reactions[emoji];
-            const nextMy = myReactions.filter(e => e !== emoji);
-            return { ...msg, reactions, myReactions: nextMy };
-          } else {
-            reactions[emoji] = (reactions[emoji] || 0) + 1;
-            myReactions.push(emoji);
-            return { ...msg, reactions, myReactions };
-          }
-        }
-        return msg;
-      })
-    );
-  }, []);
+  const handleReactChatMessage = useCallback(async (messageId: string, emoji: string) => {
+    if (!user?.uid) {
+      showToast('Please sign in to react');
+      return;
+    }
 
-  const handleCreatePoll = useCallback((question: string, optionsText: string[]) => {
-    const pollOptions: PollOption[] = optionsText
-      .filter(t => t.trim().length > 0)
-      .map((t, idx) => ({
-        id: `opt_${Date.now()}_${idx}`,
-        text: t.trim(),
-        votes: 0,
-      }));
+    try {
+      await toggleFirestoreChatReaction(messageId, user.uid, emoji);
+    } catch (err) {
+      console.warn('[Collabs] Error toggling reaction:', err);
+    }
+  }, [user?.uid, showToast]);
 
-    const newPollMsg: ChatMessage = {
-      id: `poll_${Date.now()}`,
-      senderId: currentUser.id,
-      senderName: 'You',
-      senderHandle: currentUser.handle,
-      senderInitials: currentUser.initials,
-      text: `📊 Community Poll: ${question}`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isMe: true,
-      poll: {
-        id: `poll_obj_${Date.now()}`,
+  const handleCreatePoll = useCallback(async (question: string, optionsText: string[]) => {
+    if (!user?.uid) {
+      showToast('Please sign in to create a poll');
+      return;
+    }
+
+    try {
+      await createFirestoreChatPoll({
+        authorUid: user.uid,
+        authorName: currentUser.name,
+        authorHandle: currentUser.handle,
         question,
-        options: pollOptions,
-        totalVotes: 0,
-      },
-      reactions: { '📊': 1 },
-      myReactions: ['📊'],
-    };
-
-    setChatMessages(prev => [...prev, newPollMsg]);
-    showToast('Poll created in Global Chat! 📊');
-  }, [currentUser, showToast]);
+        options: optionsText,
+      });
+      showToast('Community poll created! 📊');
+    } catch (err) {
+      console.warn('[Collabs] Error creating poll:', err);
+      showToast('Could not create poll');
+    }
+  }, [currentUser, user?.uid, showToast]);
 
   // --------------------------------------------------------------------------
   // POSTS & COMMENTS ACTIONS
   // --------------------------------------------------------------------------
   const handleToggleLikePost = useCallback(async (postId: string) => {
+    if (!user?.uid) {
+      showToast('Please sign in to like reflections');
+      return;
+    }
+
     let nextLiked = false;
     setPosts(prev =>
       prev.map(p => {
@@ -523,14 +504,12 @@ export default function CollabsScreen() {
       })
     );
 
-    if (user?.uid && !postId.startsWith('post_')) {
-      try {
-        await toggleFirestorePostLike(postId, user.uid, nextLiked);
-      } catch (err) {
-        console.warn('[Collabs] Error toggling like:', err);
-      }
+    try {
+      await toggleFirestorePostLike(postId, user.uid, nextLiked);
+    } catch (err) {
+      console.warn('[Collabs] Error toggling like:', err);
     }
-  }, [user?.uid]);
+  }, [user?.uid, showToast]);
 
   const handleToggleBookmarkPost = useCallback((postId: string) => {
     setPosts(prev =>
@@ -549,14 +528,48 @@ export default function CollabsScreen() {
     async (
       content: string,
       category: string = 'Wellness',
-      image?: string,
+      imageUri?: string,
       isPrivate?: boolean,
       likesVisible: boolean = true,
       commentsEnabled: boolean = true
     ) => {
+      if (!user?.uid) {
+        showToast('Please sign in to share reflections');
+        return;
+      }
+
+      let uploadedImageUrl: string | undefined = undefined;
+      let storagePath: string | undefined = undefined;
+
+      // Handle image upload if a local photo was selected
+      if (imageUri) {
+        if (imageUri.startsWith('http://') || imageUri.startsWith('https://')) {
+          uploadedImageUrl = imageUri;
+        } else {
+          showToast('Uploading reflection image... 📷');
+          const uploadRes = await uploadCommunityImage(imageUri, user.uid);
+          uploadedImageUrl = uploadRes.downloadUrl;
+          storagePath = uploadRes.storagePath;
+        }
+      }
+
+      const docId = await createFirestorePost({
+        userId: user.uid,
+        userName: currentUser.name,
+        userHandle: currentUser.handle,
+        userAvatar: currentUser.avatar,
+        category,
+        content,
+        image: uploadedImageUrl,
+        imagePath: storagePath,
+        isPrivate,
+        likesVisible,
+        commentsEnabled,
+      });
+
       const newPost: CommunityPost = {
-        id: `post_${Date.now()}`,
-        userId: currentUser.id,
+        id: docId,
+        userId: user.uid,
         userName: currentUser.name,
         userHandle: currentUser.handle,
         userAvatar: currentUser.avatar,
@@ -564,12 +577,12 @@ export default function CollabsScreen() {
         timeAgo: 'Just now',
         category,
         content,
-        image,
+        image: uploadedImageUrl,
         isPrivate,
         likesVisible,
         commentsEnabled,
-        likesCount: 1,
-        isLiked: true,
+        likesCount: 0,
+        isLiked: false,
         commentsCount: 0,
         comments: [],
         sharesCount: 0,
@@ -577,33 +590,41 @@ export default function CollabsScreen() {
 
       setPosts(prev => [newPost, ...prev]);
       showToast(isPrivate ? 'Private reflection saved! 🔒' : 'Reflection shared with community! 🌱');
-
-      if (user?.uid) {
-        try {
-          const docId = await createFirestorePost({
-            userId: user.uid,
-            userName: currentUser.name,
-            userHandle: currentUser.handle,
-            userAvatar: currentUser.avatar,
-            category,
-            content,
-            image,
-            isPrivate,
-          });
-          setPosts(prev => prev.map(p => p.id === newPost.id ? { ...p, id: docId } : p));
-        } catch (err) {
-          console.warn('[Collabs] Error saving post to Firestore:', err);
-        }
-      }
     },
     [currentUser, user?.uid, showToast]
   );
 
+  const handleDeletePost = useCallback(async (postId: string) => {
+    if (!user?.uid) return;
+    try {
+      await deleteFirestorePost(postId, user.uid);
+      setPosts(prev => prev.filter(p => p.id !== postId));
+      showToast('Reflection deleted 🗑️');
+    } catch (err: any) {
+      showToast(err?.message || 'Could not delete post');
+    }
+  }, [user?.uid, showToast]);
+
+  const handleReportPost = useCallback(async (postId: string, reason = 'Inappropriate content') => {
+    if (!user?.uid) return;
+    try {
+      await reportFirestorePost(postId, user.uid, reason);
+      showToast('Report submitted. Thank you for keeping Bloom mindful 🌿');
+    } catch (err: any) {
+      showToast('Could not submit report');
+    }
+  }, [user?.uid, showToast]);
+
   const handleAddComment = useCallback(
     async (postId: string, text: string) => {
+      if (!user?.uid) {
+        showToast('Please sign in to comment');
+        return;
+      }
+
       const newComment: PostComment = {
         id: `c_${Date.now()}`,
-        userId: currentUser.id,
+        userId: user.uid,
         userName: currentUser.name,
         userAvatar: currentUser.avatar,
         userInitials: currentUser.initials,
@@ -626,22 +647,6 @@ export default function CollabsScreen() {
         })
       );
 
-      // Also update discussions if commenting on a trending discussion
-      setDiscussions(prev =>
-        prev.map(d => {
-          if (d.id === postId) {
-            const currentComments = Array.isArray(d.comments) ? d.comments : [];
-            const updatedComments = [...currentComments, newComment];
-            return {
-              ...d,
-              repliesCount: d.repliesCount + 1,
-              comments: updatedComments,
-            };
-          }
-          return d;
-        })
-      );
-
       // Keep activeCommentsPost synchronized safely
       setActiveCommentsPost(prev => {
         if (prev && prev.id === postId) {
@@ -658,20 +663,55 @@ export default function CollabsScreen() {
 
       showToast('Comment added 💬');
 
-      if (user?.uid && !postId.startsWith('post_')) {
-        try {
-          await addFirestorePostComment(postId, {
-            userId: user.uid,
-            userName: currentUser.name,
-            userAvatar: currentUser.avatar,
-            text,
-          });
-        } catch (err) {
-          console.warn('[Collabs] Error adding comment to Firestore:', err);
-        }
+      try {
+        await addFirestorePostComment(postId, {
+          userId: user.uid,
+          userName: currentUser.name,
+          userAvatar: currentUser.avatar,
+          text,
+        });
+      } catch (err) {
+        console.warn('[Collabs] Error adding comment to Firestore:', err);
       }
     },
     [currentUser, user?.uid, showToast]
+  );
+
+  const handleDeleteComment = useCallback(
+    async (postId: string, commentId: string) => {
+      if (!user?.uid) return;
+      try {
+        await deleteFirestorePostComment(postId, commentId, user.uid);
+        setPosts(prev =>
+          prev.map(p => {
+            if (p.id === postId) {
+              const updated = (p.comments || []).filter(c => c.id !== commentId);
+              return {
+                ...p,
+                comments: updated,
+                commentsCount: Math.max(0, updated.length),
+              };
+            }
+            return p;
+          })
+        );
+        setActiveCommentsPost(prev => {
+          if (prev && prev.id === postId) {
+            const updated = (prev.comments || []).filter(c => c.id !== commentId);
+            return {
+              ...prev,
+              comments: updated,
+              commentsCount: Math.max(0, updated.length),
+            };
+          }
+          return prev;
+        });
+        showToast('Comment removed 🗑️');
+      } catch (err: any) {
+        showToast(err?.message || 'Could not delete comment');
+      }
+    },
+    [user?.uid, showToast]
   );
 
   const handleOpenComments = useCallback((post: CommunityPost) => {
@@ -776,7 +816,7 @@ export default function CollabsScreen() {
           console.warn('[Collabs] Error sending friend request:', err);
         }
       }
-      showToast(`Friend request sent to ${target.name} ✨`);
+      showToast(`Request sent to ${target.name}! 🌱`);
     }
   }, [suggestions, user?.uid, currentUser, showToast]);
 
@@ -846,6 +886,9 @@ export default function CollabsScreen() {
           onOpenComments={handleOpenComments}
           onSharePost={() => showToast('Post link copied to share! 🌿')}
           currentUserInitials={currentUser.initials}
+          currentUserId={user?.uid}
+          onDeletePost={handleDeletePost}
+          onReportPost={handleReportPost}
         />
       )}
 
@@ -915,6 +958,8 @@ export default function CollabsScreen() {
         onClose={() => setCommentsVisible(false)}
         post={activeCommentsPost}
         onAddComment={handleAddComment}
+        onDeleteComment={handleDeleteComment}
+        currentUser={currentUser}
       />
 
       {/* FLOATING SUCCESS TOAST */}
@@ -931,7 +976,7 @@ export default function CollabsScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#FAF8F5',
   },
   floatingToast: {
     position: 'absolute',
@@ -939,10 +984,10 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#D4E5D8',
-    borderRadius: 9999,
+    borderColor: '#E8F1E8',
+    borderRadius: 24,
+    paddingHorizontal: 16,
     paddingVertical: 10,
-    paddingHorizontal: 18,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -951,6 +996,6 @@ const styles = StyleSheet.create({
   floatingToastText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#141E19',
+    color: '#365B45',
   },
 });

@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 // Firebase Web App Configuration from Expo Public environment variables
 const firebaseConfig = {
@@ -61,5 +62,15 @@ try {
   db = getFirestore(app);
 }
 
-export { app, auth, db, firebaseConfig };
+
+// 4. Initialize Firebase Storage
+let storage: FirebaseStorage;
+try {
+  storage = getStorage(app);
+} catch (e: any) {
+  console.warn('[Firebase] Storage initialization warning:', e);
+  storage = getStorage(app);
+}
+
+export { app, auth, db, storage, firebaseConfig };
 export default app;

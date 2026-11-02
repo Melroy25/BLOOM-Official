@@ -30,7 +30,7 @@ import { Colors } from '../../../constants/colors';
 import { Typography } from '../../../constants/typography';
 import { Spacing, BorderRadius } from '../../../constants/spacing';
 import { Shadows } from '../../../constants/shadows';
-import { getBackendHabits, saveBackendTask } from '../../../services/bloomBackend';
+import { getBackendHabits, toggleBackendHabit, addBackendHabit } from '../../../services/bloomBackend';
 import { HabitItem } from '../../../types/tasks';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -46,35 +46,30 @@ interface GoalCardData {
   checkedInToday: boolean;
 }
 
-const INITIAL_GOALS: GoalCardData[] = [
-  {
-    id: 'g-1',
-    category: 'COURSEWORK & READING',
-    categoryColor: '#789B83',
-    title: 'Read 20 pages of course literature daily',
-    description: 'Deep analytical reading before noon lectures.',
-    progressPercent: 65,
-    streakDays: 6,
-    checkedInToday: true,
-  },
-  {
-    id: 'g-2',
-    category: 'MINDFUL RECOVERY',
-    categoryColor: '#365B45',
-    title: 'Morning sunlight & hydration pause (15 mins)',
-    description: 'Synchronizes circadian cortisol rhythm naturally.',
-    progressPercent: 80,
-    streakDays: 7,
-    checkedInToday: false,
-  },
-];
+const INITIAL_GOALS: GoalCardData[] = [];
 
 export default function GoalsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 20 : 16);
 
-  const [goals, setGoals] = useState<GoalCardData[]>(INITIAL_GOALS);
+  const [goals, setGoals] = useState<GoalCardData[]>([]);
+
+  useEffect(() => {
+    getBackendHabits().then((habits) => {
+      const mapped: GoalCardData[] = habits.map((h) => ({
+        id: h.id,
+        category: 'WELLNESS & HABITS',
+        categoryColor: '#789B83',
+        title: h.name,
+        description: h.target,
+        progressPercent: h.completedToday ? 100 : 50,
+        streakDays: h.streakDays,
+        checkedInToday: h.completedToday,
+      }));
+      setGoals(mapped);
+    });
+  }, []);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
 
@@ -84,24 +79,20 @@ export default function GoalsScreen() {
   const [newTarget, setNewTarget] = useState('Daily 20m');
 
   const handleToggleCheckIn = (id: string) => {
-    setGoals((prev) =>
-      prev.map((g) => {
-        if (g.id === id) {
-          const nextChecked = !g.checkedInToday;
-          const nextStreak = nextChecked ? g.streakDays + 1 : Math.max(0, g.streakDays - 1);
-          const nextProgress = nextChecked
-            ? Math.min(100, g.progressPercent + 15)
-            : Math.max(0, g.progressPercent - 15);
-          return {
-            ...g,
-            checkedInToday: nextChecked,
-            streakDays: nextStreak,
-            progressPercent: nextProgress,
-          };
-        }
-        return g;
-      })
-    );
+    toggleBackendHabit(id).then((habits) => {
+      setGoals(
+        habits.map((h) => ({
+          id: h.id,
+          category: 'WELLNESS & HABITS',
+          categoryColor: '#789B83',
+          title: h.name,
+          description: h.target,
+          progressPercent: h.completedToday ? 100 : 50,
+          streakDays: h.streakDays,
+          checkedInToday: h.completedToday,
+        }))
+      );
+    });
   };
 
   const handleCreateGoal = () => {

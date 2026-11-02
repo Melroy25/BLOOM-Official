@@ -232,3 +232,73 @@ export interface LeaderboardUser {
   bloomPoints: number;
   isMe?: boolean;
 }
+
+
+// ============================================================================
+// PHASE 5: FIRESTORE DATA MODELS (STRONG TYPING)
+// ============================================================================
+
+export interface CommunityComment {
+  id: string;
+  postId?: string;
+  userId: string;
+  authorUid?: string;
+  userName: string;
+  userAvatar?: string;
+  userInitials?: string;
+  text: string;
+  createdAt: any;
+  timestamp: string;
+}
+
+export interface CommunityReaction {
+  id?: string;
+  targetId: string;
+  targetType: 'message' | 'post' | 'comment';
+  userId: string;
+  emoji: string;
+  createdAt: any;
+}
+
+export interface CommunityPollOption {
+  id: string;
+  text: string;
+  votes: number;
+}
+
+export interface CommunityPollVote {
+  pollId: string;
+  optionId: string;
+  userId: string;
+  votedAt: any;
+}
+
+export interface CommunityPoll {
+  id: string;
+  messageId?: string;
+  question: string;
+  options: CommunityPollOption[];
+  totalVotes: number;
+  voters?: Record<string, string>; // userId -> optionId
+  userVotedOptionId?: string;
+  createdAt?: any;
+}
+
+export interface GlobalChatMessage extends ChatMessage {
+  authorUid?: string;
+  authorName?: string;
+  authorHandle?: string;
+  authorAvatar?: string;
+  storagePath?: string;
+  userReactions?: Record<string, string>; // userId -> emoji
+  pollData?: CommunityPoll;
+}
+
+export interface PostReport {
+  id?: string;
+  postId: string;
+  reporterUid: string;
+  reporterName?: string;
+  reason: string;
+  createdAt: any;
+}

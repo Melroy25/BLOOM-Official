@@ -80,6 +80,14 @@ export default function JournalScreen() {
     }
   };
 
+  const handleGoBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
+
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       {/* Top Header */}
@@ -90,7 +98,7 @@ export default function JournalScreen() {
             Shadows.sm,
             { backgroundColor: colors.white, borderColor: colors.border },
           ]}
-          onPress={() => router.back()}
+          onPress={handleGoBack}
           activeOpacity={0.7}
         >
           <ArrowLeft size={20} color={colors.darkText} strokeWidth={2.2} />

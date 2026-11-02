@@ -31,6 +31,10 @@ export interface ChatMessage {
   sprintTopic?: string;
   sprintMinutes?: number;
   quickReplies?: string[];
+  source?: 'gemini' | 'offline_fallback';
+  errorType?: 'AUTH_ERROR' | 'RATE_LIMIT' | 'TIMEOUT' | 'NETWORK_ERROR' | 'SERVER_ERROR' | 'NONE';
+  isFailed?: boolean;
+  canRetry?: boolean;
 }
 
 export interface ConversationThread {

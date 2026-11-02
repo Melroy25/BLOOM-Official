@@ -12,6 +12,7 @@ import {
   Image,
   Switch,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -42,7 +43,7 @@ interface CreatePostModalProps {
     isPrivate?: boolean,
     likesVisible?: boolean,
     commentsEnabled?: boolean
-  ) => void;
+  ) => void | Promise<void>;
   currentUser?: UserProfile;
 }
 
@@ -106,6 +107,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [likesVisible, setLikesVisible] = useState(true);
   const [commentsEnabled, setCommentsEnabled] = useState(true);
   const [showPhotoPicker, setShowPhotoPicker] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSaveNewCategory = () => {
     const trimmed = newCategoryText.trim();
