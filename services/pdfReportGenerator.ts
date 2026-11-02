@@ -11,6 +11,7 @@
 import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system/legacy';
 import { jsPDF } from 'jspdf';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from './firebase';
@@ -580,7 +581,23 @@ export async function generateReportPdf(
     html,
     base64: false,
   });
-  return result.uri;
+
+  let fileUri = result.uri;
+  // Ensure saved in cacheDirectory or documentDirectory with file:// prefix for read permission
+  try {
+    const targetDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+    if (targetDir) {
+      const sanitizedDate = (report.reportingPeriod?.startDate || `${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const targetUri = `${targetDir}BLOOM_Wellness_Report_${sanitizedDate}.pdf`;
+      const sourceUri = fileUri.startsWith('file://') ? fileUri : `file://${fileUri}`;
+      await FileSystem.copyAsync({ from: sourceUri, to: targetUri });
+      fileUri = targetUri;
+    }
+  } catch (copyErr) {
+    console.warn('[PDF Generator] Could not copy to cacheDirectory:', copyErr);
+  }
+
+  return fileUri.startsWith('file://') ? fileUri : `file://${fileUri}`;
 }
 
 /**
@@ -598,9 +615,24 @@ export async function shareReportPdf(pdfUri: string, reportTitle: string): Promi
   if (!isAvailable) {
     throw new Error('Sharing is not supported on this platform.');
   }
-  await Sharing.shareAsync(pdfUri, {
+
+  let formattedUri = pdfUri.startsWith('file://') ? pdfUri : `file://${pdfUri}`;
+
+  // On Android, ensure file is copied into FileSystem.cacheDirectory so FileProvider allows sharing
+  try {
+    const targetDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+    if (targetDir && !formattedUri.includes(targetDir.replace('file://', ''))) {
+      const safeUri = `${targetDir}BLOOM_Export_${Date.now()}.pdf`;
+      await FileSystem.copyAsync({ from: formattedUri, to: safeUri });
+      formattedUri = safeUri.startsWith('file://') ? safeUri : `file://${safeUri}`;
+    }
+  } catch (copyErr) {
+    // Proceed with formattedUri
+  }
+
+  await Sharing.shareAsync(formattedUri, {
     mimeType: 'application/pdf',
-    dialogTitle: reportTitle || 'Share BLOOM Wellness Report',
+    dialogTitle: reportTitle || 'Export Wellness Report',
     UTI: 'com.adobe.pdf',
   });
 }

@@ -346,6 +346,27 @@ export default function TabLayout() {
           href: null,
         }}
       />
+
+      <Tabs.Screen
+        name="create-challenge"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="music-therapy"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="wellness-report"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

@@ -122,36 +122,46 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       } catch (e) {}
     }
 
-    // 1. If song has a bundled local asset, play it immediately for instant offline playback
-    if (song.localAsset) {
-      try {
-        const { sound } = await Audio.Sound.createAsync(
-          song.localAsset,
-          { shouldPlay: true, progressUpdateIntervalMillis: 250 },
-          onPlaybackStatusUpdate
-        );
-        soundRef.current = sound;
-        loadedSuccessfully = true;
-        setIsPlaying(true);
-        setIsLoading(false);
-      } catch (localError: any) {
-        // Fall back to remote audio URI below
-      }
-    }
+    // Configure audio mode on Android / iOS before track initialization
+    try {
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+      });
+    } catch (_) {}
 
-    // 2. Fall back to remote/user-uploaded audio URI
-    if (!loadedSuccessfully && audioUri) {
-      try {
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: audioUri },
-          { shouldPlay: true, progressUpdateIntervalMillis: 250 },
-          onPlaybackStatusUpdate
-        );
-        soundRef.current = sound;
-        loadedSuccessfully = true;
-        setIsPlaying(true);
-        setIsLoading(false);
-      } catch (remoteError) {
+    // 1. Prioritize bundled local audio asset for instant, offline playback
+    const localAssetToPlay = song.localAsset || require('../../assets/audio/singing-bowl.mp3');
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        localAssetToPlay,
+        { shouldPlay: true, progressUpdateIntervalMillis: 250 },
+        onPlaybackStatusUpdate
+      );
+      soundRef.current = sound;
+      loadedSuccessfully = true;
+      setIsPlaying(true);
+      setIsLoading(false);
+    } catch (localError: any) {
+      // 2. Fall back to remote/user-uploaded audio URI if local asset fails
+      if (audioUri) {
+        try {
+          const { sound } = await Audio.Sound.createAsync(
+            { uri: audioUri },
+            { shouldPlay: true, progressUpdateIntervalMillis: 250 },
+            onPlaybackStatusUpdate
+          );
+          soundRef.current = sound;
+          loadedSuccessfully = true;
+          setIsPlaying(true);
+          setIsLoading(false);
+        } catch (remoteError) {
+          setError('Could not load audio track. Please try again.');
+          setIsPlaying(false);
+          setIsLoading(false);
+        }
+      } else {
         setError('Could not load audio track. Please try again.');
         setIsPlaying(false);
         setIsLoading(false);

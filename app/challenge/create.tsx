@@ -210,7 +210,7 @@ export default function CreateChallengeScreen() {
           durationDays: effectiveDays,
           startDate,
           coverImageUrl,
-          dailyActivities: activities.map((a) => ({ title: a })),
+          dailyActivities: activities.map((a) => ({ title: a.trim(), description: '' })),
           rules,
           visibility,
         },

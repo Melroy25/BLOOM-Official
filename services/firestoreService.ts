@@ -949,10 +949,18 @@ export async function getFirestoreCommunityPosts(currentUserId?: string): Promis
     try {
       const q = query(colRef, orderBy('createdAt', 'desc'), limit(30));
       snap = await getDocs(q);
-    } catch {
-      colRef = collection(db, 'posts');
-      const q = query(colRef, orderBy('createdAt', 'desc'), limit(30));
-      snap = await getDocs(q);
+    } catch (e1) {
+      try {
+        colRef = collection(db, 'posts');
+        const q = query(colRef, orderBy('createdAt', 'desc'), limit(30));
+        snap = await getDocs(q);
+      } catch (e2) {
+        try {
+          snap = await getDocs(query(collection(db, 'globalPosts'), limit(30)));
+        } catch (e3) {
+          return [];
+        }
+      }
     }
 
     if (snap.empty) {

@@ -528,8 +528,8 @@ export async function createCommunityChallenge(
   // 3. Format Activities with IDs
   const formattedActivities: ChallengeActivity[] = input.dailyActivities.map((a, i) => ({
     id: `act_${Date.now()}_${i}`,
-    title: a.title.trim(),
-    description: a.description?.trim(),
+    title: (a.title || '').trim(),
+    description: a.description?.trim() || '',
   }));
 
   // 4. Fallback Cover Image by Category
@@ -548,22 +548,22 @@ export async function createCommunityChallenge(
     cover = categoryCovers[input.category] || categoryCovers.Productivity;
   }
 
-  // 5. Persist to Firestore
+  // 5. Persist to Firestore with undefined-sanitized payload
   const colRef = collection(db, 'challenges');
-  const docRef = await addDoc(colRef, {
+  const rawChallengeData = {
     title: input.title.trim(),
     shortDescription: input.shortDescription?.trim() || input.description.trim().slice(0, 100),
     description: input.description.trim(),
-    category: input.category,
-    categoryTag: input.category,
-    coverImageUrl: cover,
+    category: input.category || 'Mindfulness',
+    categoryTag: input.category || 'Mindfulness',
+    coverImageUrl: cover || '',
     duration: `${input.durationDays} Days`,
     durationDays: input.durationDays,
     startDate: input.startDate || getTodayDateString(),
     endDate: endDateStr,
     dailyActivities: formattedActivities,
-    rules: (input.rules || []).filter((r) => r.trim().length > 0),
-    visibility: input.visibility,
+    rules: (input.rules || []).filter((r) => r && r.trim().length > 0),
+    visibility: input.visibility || 'public',
     status: 'Active',
     participantCount: 1, // Creator automatically joins
     creatorUid: creator.uid,
@@ -571,12 +571,18 @@ export async function createCommunityChallenge(
     creatorAvatar: creator.avatar || '',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  };
+
+  const cleanPayload = JSON.parse(
+    JSON.stringify(rawChallengeData, (_, v) => (v === undefined ? null : v))
+  );
+
+  const docRef = await addDoc(colRef, cleanPayload);
 
   // Creator automatically joins as participant #1
   try {
     const participantRef = doc(db, 'challenges', docRef.id, 'participants', creator.uid);
-    await setDoc(participantRef, {
+    const rawParticipantData = {
       uid: creator.uid,
       displayName: creator.name || 'Bloom Member',
       avatarUrl: creator.avatar || '',
@@ -584,7 +590,11 @@ export async function createCommunityChallenge(
       completedDays: 0,
       currentStreak: 0,
       progressVisibility: 'public',
-    });
+    };
+    const cleanParticipantData = JSON.parse(
+      JSON.stringify(rawParticipantData, (_, v) => (v === undefined ? null : v))
+    );
+    await setDoc(participantRef, cleanParticipantData);
   } catch (_) {}
 
   return docRef.id;
